@@ -96,6 +96,18 @@ func ResourceUser() *schema.Resource {
 				Type:     schema.TypeString,
 				Optional: true,
 			},
+			"virtual_network_override_id": {
+				Description: "The ID of the network to pin this client to, regardless of which SSID it associates " +
+					"with -- the controller calls this the client's Virtual Network Override.\n\n" +
+					"This is NOT `network_id`. The controller stores the override as a pair of fields, " +
+					"`virtual_network_override_enabled` and `virtual_network_override_id`, and the VLAN assignment " +
+					"consults only those; `network_id` is an older field this feature does not read. Setting a value " +
+					"here enables the override, and clearing it disables it.\n\n" +
+					"Only meaningful for wireless clients. A wired client takes its VLAN from the switch port, so an " +
+					"override there does nothing.",
+				Type:     schema.TypeString,
+				Optional: true,
+			},
 			"blocked": {
 				Description: "When true, this client will be blocked from accessing the network. Useful for temporarily " +
 					"or permanently restricting network access for specific devices.",
@@ -228,6 +240,7 @@ func resourceUserGetResourceData(d *schema.ResourceData) *unifi.User {
 	userGroupID, _ := d.Get("user_group_id").(string)
 	note, _ := d.Get("note").(string)
 	networkID, _ := d.Get("network_id").(string)
+	virtualNetworkOverrideID, _ := d.Get("virtual_network_override_id").(string)
 	blocked, _ := d.Get("blocked").(bool)
 	devIDOverride, _ := d.Get("dev_id_override").(int)
 
@@ -241,6 +254,11 @@ func resourceUserGetResourceData(d *schema.ResourceData) *unifi.User {
 		LocalDNSRecord:        localDNSRecord,
 		LocalDNSRecordEnabled: localDNSRecord != "",
 		NetworkID:             networkID,
+		// The controller stores the override as a PAIR and reads both. Deriving
+		// the flag from the id keeps them from disagreeing: an id means enabled,
+		// no id means disabled. Same shape as fixed_ip / local_dns_record above.
+		VirtualNetworkOverrideID:      virtualNetworkOverrideID,
+		VirtualNetworkOverrideEnabled: virtualNetworkOverrideID != "",
 		// not sure if this matters/works
 		Blocked:       blocked,
 		DevIdOverride: devIDOverride,
@@ -256,6 +274,12 @@ func resourceUserSetResourceData(resp *unifi.User, d *schema.ResourceData, site 
 	localDNSRecord := ""
 	if resp.LocalDNSRecordEnabled {
 		localDNSRecord = resp.LocalDNSRecord
+	}
+
+	// A stale id with the flag off is not an override, so surface it as unset.
+	virtualNetworkOverrideID := ""
+	if resp.VirtualNetworkOverrideEnabled {
+		virtualNetworkOverrideID = resp.VirtualNetworkOverrideID
 	}
 
 	if err := d.Set("site", site); err != nil {
@@ -280,6 +304,9 @@ func resourceUserSetResourceData(resp *unifi.User, d *schema.ResourceData, site 
 		return diag.FromErr(err)
 	}
 	if err := d.Set("network_id", resp.NetworkID); err != nil {
+		return diag.FromErr(err)
+	}
+	if err := d.Set("virtual_network_override_id", virtualNetworkOverrideID); err != nil {
 		return diag.FromErr(err)
 	}
 	if err := d.Set("blocked", resp.Blocked); err != nil {
