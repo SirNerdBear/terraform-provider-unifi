@@ -203,7 +203,6 @@ func ResourceDevice() *schema.Resource {
 								"cannot be cleared back to empty through Terraform — change it to another network ID instead.",
 							Type:     schema.TypeString,
 							Optional: true,
-							Computed: true,
 						},
 						"tagged_vlan_mgmt": {
 							Description: "VLAN tagging behavior for the port. Valid values are:\n" +
@@ -215,7 +214,6 @@ func ResourceDevice() *schema.Resource {
 								"through Terraform — change it to another value instead.",
 							Type:         schema.TypeString,
 							Optional:     true,
-							Computed:     true,
 							ValidateFunc: validation.StringInSlice([]string{"auto", "block_all", "custom"}, false),
 						},
 						"forward": {
@@ -229,7 +227,6 @@ func ResourceDevice() *schema.Resource {
 								"set it cannot be cleared back to empty through Terraform — change it to another value instead.",
 							Type:         schema.TypeString,
 							Optional:     true,
-							Computed:     true,
 							ValidateFunc: validation.StringInSlice([]string{"all", "native", "customize", "disabled"}, false),
 						},
 						"excluded_network_ids": {
@@ -238,7 +235,6 @@ func ResourceDevice() *schema.Resource {
 								"Computed when not set, so the controller's current exclusions are preserved without producing a diff.",
 							Type:     schema.TypeSet,
 							Optional: true,
-							Computed: true,
 							Elem:     &schema.Schema{Type: schema.TypeString},
 						},
 						"voice_networkconf_id": {
@@ -249,7 +245,6 @@ func ResourceDevice() *schema.Resource {
 								"through Terraform — change it to another network ID instead.",
 							Type:     schema.TypeString,
 							Optional: true,
-							Computed: true,
 						},
 						"setting_preference": {
 							Description: "Whether the port's settings are taken from a profile (`auto`) or set per-port (`manual`). " +
@@ -260,7 +255,6 @@ func ResourceDevice() *schema.Resource {
 								"Computed when not set, so the value the controller attaches to the port is preserved without producing a diff.",
 							Type:         schema.TypeString,
 							Optional:     true,
-							Computed:     true,
 							ValidateFunc: validation.StringInSlice([]string{"auto", "manual"}, false),
 						},
 					},

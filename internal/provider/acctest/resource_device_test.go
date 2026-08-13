@@ -258,7 +258,7 @@ func TestAccDevice_switch_portOverrides(t *testing.T) {
 	device, unallocateDevice := allocateDevice(t)
 	defer unallocateDevice()
 
-	importStateVerifyIgnore := []string{"allow_adoption", "forget_on_destroy", "name"}
+	importStateVerifyIgnore := []string{"allow_adoption", "forget_on_destroy", "name", "port_override"}
 
 	AcceptanceTest(t, AcceptanceTestCase{
 		PreCheck: func() {
@@ -298,6 +298,41 @@ func TestAccDevice_switch_portOverrides(t *testing.T) {
 				Config:   testAccDeviceConfigWithPortOverridesBasic(device.MAC),
 				PlanOnly: true,
 			},
+			// Editing existing entries -- same port numbers, different
+			// attributes. This must actually reach the controller. With the set
+			// hashed on `number` alone it did not: the plan was empty, no API
+			// call was made, and the edit was silently discarded.
+			{
+				Config: testAccDeviceConfigWithPortOverridesEdited(device.MAC),
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckDeviceExists(resourceName),
+					resource.TestCheckResourceAttr(resourceName, "port_override.#", "3"),
+					resource.TestCheckTypeSetElemNestedAttrs(resourceName, "port_override.*", map[string]string{
+						"number": "1",
+						"name":   "Port 1 renamed",
+					}),
+					resource.TestCheckTypeSetElemNestedAttrs(resourceName, "port_override.*", map[string]string{
+						"number": "2",
+						"name":   "Port 2 renamed",
+					}),
+					resource.TestCheckTypeSetElemNestedAttrs(resourceName, "port_override.*", map[string]string{
+						"number":   "4",
+						"poe_mode": "off",
+					}),
+				),
+			},
+			// And the edit must settle: no perpetual diff afterwards.
+			{
+				Config:   testAccDeviceConfigWithPortOverridesEdited(device.MAC),
+				PlanOnly: true,
+			},
+			// port_override is excluded from ImportStateVerify. Applied state
+			// holds only the attributes the config declared; import has no
+			// config to consult, so it surfaces the controller's full view of
+			// every override. Those legitimately differ, and set indices are
+			// element hashes so a per-attribute ignore cannot address them.
+			// Override content is covered by the assertions above and by the
+			// two PlanOnly merge gates.
 			{
 				ResourceName:            resourceName,
 				ImportState:             true,
@@ -451,6 +486,35 @@ resource "unifi_device" "test" {
 	port_override {
 		number   = 4
 		poe_mode = "pasv24"
+	}
+}
+`, mac)
+}
+
+// testAccDeviceConfigWithPortOverridesEdited is
+// testAccDeviceConfigWithPortOverridesBasic with the SAME port numbers but
+// changed attributes. The port set is deliberately identical: a set hash keyed
+// on `number` alone makes these two configs indistinguishable, the plan comes
+// back empty, and the edit is silently dropped.
+func testAccDeviceConfigWithPortOverridesEdited(mac string) string {
+	return fmt.Sprintf(`
+resource "unifi_device" "test" {
+	mac = %q
+
+	port_override {
+		number = 1
+		name   = "Port 1 renamed"
+	}
+
+	port_override {
+		number  = 2
+		name    = "Port 2 renamed"
+		op_mode = "switch"
+	}
+
+	port_override {
+		number   = 4
+		poe_mode = "off"
 	}
 }
 `, mac)

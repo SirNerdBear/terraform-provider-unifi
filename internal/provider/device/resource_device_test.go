@@ -256,10 +256,17 @@ func TestFromPortOverride_SurfacesOnlyDeclaredAttrs(t *testing.T) {
 	assert.Equal(t, "net-auto", all["native_networkconf_id"])
 }
 
-// The new VLAN attributes must be Optional+Computed so an undeclared field reads
-// back the controller's value without a perpetual diff. This pairs with the
-// number-keyed set hash above; together they neutralize the upgrade churn.
-func TestPortOverrideVLANFields_AreOptionalComputed(t *testing.T) {
+// The VLAN attributes must be Optional and NOT Computed.
+//
+// Computed inside a TypeSet element is incompatible with surfacing only the
+// declared attributes: one filtered out of state reads back null, null +
+// Computed means "unknown", and the element then plans as `(known after apply)`
+// on every run -- the merge gate never settles.
+//
+// Without Computed, undeclared means absent in both config and state, which
+// compares equal. The trade is that drift on an attribute the practitioner
+// never declared is not tracked: declare it to manage it.
+func TestPortOverrideVLANFields_AreOptionalNotComputed(t *testing.T) {
 	elem, _ := ResourceDevice().Schema["port_override"].Elem.(*schema.Resource)
 	for _, attr := range []string{
 		"native_networkconf_id", "tagged_vlan_mgmt", "forward",
@@ -268,7 +275,8 @@ func TestPortOverrideVLANFields_AreOptionalComputed(t *testing.T) {
 		s := elem.Schema[attr]
 		require.NotNil(t, s, "attribute %s must exist", attr)
 		assert.True(t, s.Optional, "%s must be Optional", attr)
-		assert.True(t, s.Computed, "%s must be Computed (to absorb controller echoes without churn)", attr)
+		assert.False(t, s.Computed,
+			"%s must NOT be Computed: null in state would plan as unknown and churn the set", attr)
 		assert.Nil(t, s.Default, "%s must not have a Default", attr)
 	}
 }
