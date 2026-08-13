@@ -176,6 +176,63 @@ func ResourceDevice() *schema.Resource {
 							Optional:     true,
 							ValidateFunc: validation.StringInSlice([]string{"auto", "pasv24", "passthrough", "off"}, false),
 						},
+						// The controller accepts all of the following on a port
+						// override; they were simply missing from the schema.
+						//
+						// CAVEAT on the booleans: the go-unifi fields are `bool`
+						// with `omitempty`, so a false is dropped from the payload
+						// and the controller keeps what it had. They can be turned
+						// ON from Terraform but not OFF.
+						"port_security_enabled": {
+							Description: "Enable port security on this port.\n\n" +
+								"With `port_security_mac_address` set, only those MACs may use the port. With NO MAC " +
+								"addresses and no native network, the controller reports the port as `forward = \"disabled\"` " +
+								"-- this is how a port is administratively shut.\n\n" +
+								"**Cannot be turned off from Terraform**: the underlying field is `omitempty`, so a false is " +
+								"dropped from the payload and the controller keeps the previous value.",
+							Type:     schema.TypeBool,
+							Optional: true,
+						},
+						"port_security_mac_address": {
+							Description: "MAC addresses permitted on this port when `port_security_enabled` is true. " +
+								"Leave empty to shut the port rather than restrict it.",
+							Type:     schema.TypeSet,
+							Optional: true,
+							Elem: &schema.Schema{
+								Type:         schema.TypeString,
+								ValidateFunc: validation.StringMatch(utils.MacAddressRegexp, "Mac address is invalid"),
+							},
+						},
+						"stp_port_mode": {
+							Description: "Enable STP on this port. Cannot be turned off from Terraform -- see `port_security_enabled`.",
+							Type:        schema.TypeBool,
+							Optional:    true,
+						},
+						"autoneg": {
+							Description: "Enable speed/duplex auto-negotiation. Pinning a port means `autoneg = false` plus " +
+								"`speed`, but a false cannot be WRITTEN (see `port_security_enabled`) -- an existing " +
+								"`autoneg = false` on the controller is preserved because the field is omitted.",
+							Type:     schema.TypeBool,
+							Optional: true,
+						},
+						"speed": {
+							Description: "Pin the port speed in Mbps. Only meaningful with auto-negotiation off.",
+							Type:        schema.TypeInt,
+							Optional:    true,
+							ValidateFunc: validation.IntInSlice([]int{
+								10, 100, 1000, 2500, 5000, 10000, 20000, 25000, 40000, 50000, 100000,
+							}),
+						},
+						"full_duplex": {
+							Description: "Full duplex when auto-negotiation is off. Cannot be turned off from Terraform -- see `port_security_enabled`.",
+							Type:        schema.TypeBool,
+							Optional:    true,
+						},
+						"isolation": {
+							Description: "Isolate this port from other isolated ports on the switch. Cannot be turned off from Terraform -- see `port_security_enabled`.",
+							Type:        schema.TypeBool,
+							Optional:    true,
+						},
 						"aggregate_num_ports": {
 							Description: "The number of ports to include in a link aggregation group (LAG). Valid range: 2-8 ports. Used when:\n" +
 								"* Creating switch-to-switch uplinks for increased bandwidth\n" +
@@ -668,7 +725,6 @@ func radioSetHash(v interface{}) int {
 	return schema.HashString(name)
 }
 
-
 // radiosFromDevice returns radio state for only the bands the user manages
 // (present in config/state), so undeclared bands on the device never produce
 // a diff.
@@ -852,6 +908,21 @@ func toPortOverride(data map[string]interface{}) (unifi.DevicePortOverrides, err
 	opMode, _ := data["op_mode"].(string)
 	poeMode, _ := data["poe_mode"].(string)
 	aggregateNumPorts, _ := data["aggregate_num_ports"].(int)
+	portSecurityEnabled, _ := data["port_security_enabled"].(bool)
+	stpPortMode, _ := data["stp_port_mode"].(bool)
+	autoneg, _ := data["autoneg"].(bool)
+	speed, _ := data["speed"].(int)
+	fullDuplex, _ := data["full_duplex"].(bool)
+	isolation, _ := data["isolation"].(bool)
+
+	var portSecurityMACs []string
+	if set, ok := data["port_security_mac_address"].(*schema.Set); ok {
+		var err error
+		portSecurityMACs, err = utils.SetToStringSlice(set)
+		if err != nil {
+			return unifi.DevicePortOverrides{}, fmt.Errorf("unable to process port_security_mac_address: %w", err)
+		}
+	}
 
 	var excludedNetworkIDs []string
 	if set, ok := data["excluded_network_ids"].(*schema.Set); ok {
@@ -885,6 +956,16 @@ func toPortOverride(data map[string]interface{}) (unifi.DevicePortOverrides, err
 		ExcludedNetworkIDs: excludedNetworkIDs,
 		VoiceNetworkID:     voiceNetworkID,
 		SettingPreference:  settingPreference,
+
+		// All bool + omitempty: a false is omitted and the controller keeps
+		// its existing value. These can be turned on, not off.
+		PortSecurityEnabled:    portSecurityEnabled,
+		PortSecurityMACAddress: portSecurityMACs,
+		StpPortMode:            stpPortMode,
+		Autoneg:                autoneg,
+		Speed:                  speed,
+		FullDuplex:             fullDuplex,
+		Isolation:              isolation,
 	}
 
 	// go-unifi v1.9 tracks the current controller API, which expresses a LAG
@@ -934,6 +1015,14 @@ func fromPortOverride(po unifi.DevicePortOverrides, declared map[string]bool) ma
 		"excluded_network_ids":  utils.StringSliceToSet(po.ExcludedNetworkIDs),
 		"voice_networkconf_id":  po.VoiceNetworkID,
 		"setting_preference":    po.SettingPreference,
+
+		"port_security_enabled":     po.PortSecurityEnabled,
+		"port_security_mac_address": utils.StringSliceToSet(po.PortSecurityMACAddress),
+		"stp_port_mode":             po.StpPortMode,
+		"autoneg":                   po.Autoneg,
+		"speed":                     po.Speed,
+		"full_duplex":               po.FullDuplex,
+		"isolation":                 po.Isolation,
 	}
 
 	if declared == nil {

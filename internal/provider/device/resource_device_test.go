@@ -95,6 +95,14 @@ func portOverrideData(overrides map[string]interface{}) map[string]interface{} {
 		"excluded_network_ids":  stringSet(),
 		"voice_networkconf_id":  "",
 		"setting_preference":    "",
+
+		"port_security_enabled":     false,
+		"port_security_mac_address": stringSet(),
+		"stp_port_mode":             false,
+		"autoneg":                   false,
+		"speed":                     0,
+		"full_duplex":               false,
+		"isolation":                 false,
 	}
 	for k, v := range overrides {
 		data[k] = v
@@ -384,4 +392,60 @@ func TestMergeEtherLighting_FromEmptyCurrent(t *testing.T) {
 	if got.Mode != "network" || got.Brightness != 60 || got.Behavior != "" {
 		t.Errorf("unexpected merge from empty: %+v", got)
 	}
+}
+
+// A shut port is port_security_enabled with NO permitted MACs and no native
+// network -- the controller then reports forward = "disabled". Verified against
+// hardware: RSW-HPR-01 ports 3/7/24 carry exactly this shape. Without
+// port_security_enabled a "disabled" port is indistinguishable from an access
+// port, which is what the shut template used to render.
+func TestToPortOverride_ShutPort(t *testing.T) {
+	po, err := toPortOverride(portOverrideData(map[string]interface{}{
+		"number":                3,
+		"name":                  "CAM-BYZ",
+		"port_security_enabled": true,
+		"poe_mode":              "off",
+	}))
+	require.NoError(t, err)
+
+	assert.True(t, po.PortSecurityEnabled)
+	assert.Empty(t, po.PortSecurityMACAddress, "a shut port permits no MACs")
+	assert.Equal(t, "", po.NATiveNetworkID, "a shut port has no native network")
+	assert.Equal(t, "off", po.PoeMode)
+}
+
+// Port security with MACs is a DIFFERENT feature sharing the same flag: the
+// port stays forwarding and only the listed MACs may use it. RSW-HPR-01:26 and
+// :28 are live examples, so the renderer must not read the flag alone as "shut".
+func TestToPortOverride_PortSecurityWithMACs(t *testing.T) {
+	po, err := toPortOverride(portOverrideData(map[string]interface{}{
+		"number":                    26,
+		"port_security_enabled":     true,
+		"port_security_mac_address": stringSet("d0:d2:b0:a4:87:a7"),
+		"native_networkconf_id":     "net-users",
+	}))
+	require.NoError(t, err)
+
+	assert.True(t, po.PortSecurityEnabled)
+	assert.ElementsMatch(t, []string{"d0:d2:b0:a4:87:a7"}, po.PortSecurityMACAddress)
+	assert.Equal(t, "net-users", po.NATiveNetworkID)
+}
+
+func TestPortOverride_PinnedSpeedRoundTrip(t *testing.T) {
+	in := portOverrideData(map[string]interface{}{
+		"number":        19,
+		"speed":         10000,
+		"stp_port_mode": true,
+		"isolation":     true,
+	})
+	po, err := toPortOverride(in)
+	require.NoError(t, err)
+	assert.Equal(t, 10000, po.Speed)
+	assert.True(t, po.StpPortMode)
+	assert.True(t, po.Isolation)
+
+	out := fromPortOverride(po, nil)
+	assert.Equal(t, 10000, out["speed"])
+	assert.Equal(t, true, out["stp_port_mode"])
+	assert.Equal(t, true, out["isolation"])
 }
