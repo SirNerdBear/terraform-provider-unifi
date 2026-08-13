@@ -127,7 +127,7 @@ func isBroadcomSwitch(device unifi.Device) bool {
 		return true
 
 		// USW-Enterprise
-	case "US624P", "US648P", "USXG24":
+	case "US68P", "US624P", "US648P", "USXG24":
 		return true
 
 	// US-XG-6PoE
