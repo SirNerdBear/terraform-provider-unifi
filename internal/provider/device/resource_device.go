@@ -109,15 +109,12 @@ func ResourceDevice() *schema.Resource {
 					"everything\", not \"trunk nothing\".",
 				Type:     schema.TypeSet,
 				Optional: true,
-				// Key set identity by port `number` only (see portOverrideSetHash):
-				// the controller auto-populates/echoes per-port VLAN fields
-				// (e.g. setting_preference or a native VLAN) on override entries
-				// the user never declared them on. Hashing the whole element would
-				// let such an echo change an element's identity and churn the set
-				// (perpetual add/remove diff). Combined with the Optional+Computed
-				// VLAN attributes below, an undeclared field reads back the
-				// controller value without producing a diff.
-				Set: portOverrideSetHash,
+				// Uses the SDK's default full-element hash. A number-only hash
+				// was tried and makes editing an existing entry produce NO diff
+				// at all -- same number, same hash, so the set looks unchanged
+				// however much the block changed. Controller echoes are kept out
+				// of the set by fromPortOverride instead, which surfaces only the
+				// attributes the practitioner declared.
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
 						"number": {
@@ -614,7 +611,7 @@ func resourceDeviceRead(ctx context.Context, d *schema.ResourceData, meta interf
 }
 
 func resourceDeviceSetResourceData(resp *unifi.Device, d *schema.ResourceData, site string) diag.Diagnostics {
-	portOverrides := setFromPortOverrides(resp.PortOverrides)
+	portOverrides := setFromPortOverrides(resp.PortOverrides, d)
 
 	values := map[string]interface{}{
 		"site":                site,
@@ -677,19 +674,6 @@ func radioSetHash(v interface{}) int {
 	return schema.HashString(name)
 }
 
-// portOverrideSetHash keys the `port_override` set by port `number` only, so the
-// controller echoing/auto-populating per-port fields (e.g. setting_preference or
-// a native VLAN) on an entry the user didn't declare them on does not change the
-// element's set identity and churn the set. Together with the Optional+Computed
-// VLAN attributes, an undeclared field reads back the controller value without a
-// perpetual add/remove diff. `number` is Required and unique per port
-// (setToPortOverrides already dedupes by PortIDX), so it is a sound stable key.
-// Mirrors the radioSetHash precedent.
-func portOverrideSetHash(v interface{}) int {
-	m, _ := v.(map[string]interface{})
-	number, _ := m["number"].(int)
-	return schema.HashInt(number)
-}
 
 // radiosFromDevice returns radio state for only the bands the user manages
 // (present in config/state), so undeclared bands on the device never produce
@@ -811,10 +795,58 @@ func setToPortOverrides(set *schema.Set) ([]unifi.DevicePortOverrides, error) {
 	return pos, nil
 }
 
-func setFromPortOverrides(pos []unifi.DevicePortOverrides) []map[string]interface{} {
+// declaredPortAttrs maps port number -> the attribute names the practitioner
+// actually wrote for that port. A port absent from the map (import, or a port
+// overridden outside Terraform) yields nil, which means "surface everything".
+func declaredPortAttrs(d *schema.ResourceData) map[int]map[string]bool {
+	set, ok := d.Get("port_override").(*schema.Set)
+	if !ok || set == nil {
+		return nil
+	}
+	declared := make(map[int]map[string]bool, set.Len())
+	for _, item := range set.List() {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		number, _ := m["number"].(int)
+		attrs := make(map[string]bool, len(m))
+		for k, v := range m {
+			if !isZeroAttr(v) {
+				attrs[k] = true
+			}
+		}
+		declared[number] = attrs
+	}
+	return declared
+}
+
+// isZeroAttr reports whether an attribute is absent from the config. The SDK
+// materialises every schema attribute in the map, so "not written" is
+// indistinguishable from "written as the zero value" -- which is acceptable
+// here because writing a zero value and omitting the field produce the same
+// (omitempty) payload either way.
+func isZeroAttr(v interface{}) bool {
+	switch t := v.(type) {
+	case string:
+		return t == ""
+	case int:
+		return t == 0
+	case bool:
+		return !t
+	case *schema.Set:
+		return t == nil || t.Len() == 0
+	case nil:
+		return true
+	}
+	return false
+}
+
+func setFromPortOverrides(pos []unifi.DevicePortOverrides, d *schema.ResourceData) []map[string]interface{} {
+	declared := declaredPortAttrs(d)
 	list := make([]map[string]interface{}, 0, len(pos))
 	for _, po := range pos {
-		list = append(list, fromPortOverride(po))
+		list = append(list, fromPortOverride(po, declared[po.PortIDX]))
 	}
 	return list
 }
@@ -880,8 +912,19 @@ func toPortOverride(data map[string]interface{}) (unifi.DevicePortOverrides, err
 	return po, nil
 }
 
-func fromPortOverride(po unifi.DevicePortOverrides) map[string]interface{} {
-	return map[string]interface{}{
+// fromPortOverride flattens a controller port override for state.
+//
+// `declared` lists the attributes the practitioner wrote for this port. Only
+// those are surfaced, so a value the controller auto-populates on a port it was
+// never declared on (setting_preference, a native VLAN) never reaches state and
+// therefore cannot appear as a diff. A nil `declared` surfaces everything, which
+// is what import needs.
+//
+// This is what lets `port_override` use the SDK's default full-element set
+// hash: echoes are filtered here rather than being hidden by a hash that
+// ignores them, so an edited attribute changes the element and produces a diff.
+func fromPortOverride(po unifi.DevicePortOverrides, declared map[string]bool) map[string]interface{} {
+	all := map[string]interface{}{
 		"number":          po.PortIDX,
 		"name":            po.Name,
 		"port_profile_id": po.PortProfileID,
@@ -890,13 +933,7 @@ func fromPortOverride(po unifi.DevicePortOverrides) map[string]interface{} {
 		// Inverse of the translation in toPortOverride: the member-list
 		// length is the LAG port count (0 / unset round-trips as an empty
 		// list, preserving the previous zero-value behavior).
-		"aggregate_num_ports": len(po.AggregateMembers),
-		// Per-port VLAN overrides, round-tripped unconditionally to match the
-		// existing fields above (keeps ImportStateVerify consistent). These
-		// attributes are Optional+Computed and the set is keyed by port number
-		// (portOverrideSetHash), so surfacing a value the controller populated on
-		// a port the user didn't declare it on is absorbed as the computed value
-		// instead of churning the set.
+		"aggregate_num_ports":   len(po.AggregateMembers),
 		"native_networkconf_id": po.NATiveNetworkID,
 		"tagged_vlan_mgmt":      po.TaggedVLANMgmt,
 		"forward":               po.Forward,
@@ -904,6 +941,19 @@ func fromPortOverride(po unifi.DevicePortOverrides) map[string]interface{} {
 		"voice_networkconf_id":  po.VoiceNetworkID,
 		"setting_preference":    po.SettingPreference,
 	}
+
+	if declared == nil {
+		return all
+	}
+
+	// `number` is the identity and is always present.
+	filtered := map[string]interface{}{"number": all["number"]}
+	for k, v := range all {
+		if declared[k] {
+			filtered[k] = v
+		}
+	}
+	return filtered
 }
 
 func waitForDeviceState(ctx context.Context, d *schema.ResourceData, meta interface{}, targetState unifi.DeviceState, pendingStates []unifi.DeviceState, timeout time.Duration) (*unifi.Device, error) {

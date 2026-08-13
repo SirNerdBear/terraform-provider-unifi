@@ -43,7 +43,7 @@ func TestFromPortOverrideAggregateTranslation(t *testing.T) {
 			PortIDX:          5,
 			OpMode:           "aggregate",
 			AggregateMembers: []int{5, 6, 7},
-		})
+		}, nil)
 		assert.Equal(t, 3, m["aggregate_num_ports"])
 	})
 
@@ -51,7 +51,7 @@ func TestFromPortOverrideAggregateTranslation(t *testing.T) {
 		m := fromPortOverride(unifi.DevicePortOverrides{
 			PortIDX: 1,
 			OpMode:  "switch",
-		})
+		}, nil)
 		assert.Equal(t, 0, m["aggregate_num_ports"])
 	})
 }
@@ -67,7 +67,7 @@ func TestPortOverrideAggregateRoundTrip(t *testing.T) {
 	}
 	po, err := toPortOverride(in)
 	require.NoError(t, err)
-	out := fromPortOverride(po)
+	out := fromPortOverride(po, nil)
 	assert.Equal(t, in["aggregate_num_ports"], out["aggregate_num_ports"])
 }
 
@@ -146,7 +146,7 @@ func TestFromPortOverride_VLANFields(t *testing.T) {
 		ExcludedNetworkIDs: []string{"net-a", "net-b"},
 		VoiceNetworkID:     "net-voice",
 		SettingPreference:  "manual",
-	})
+	}, nil)
 	assert.Equal(t, "net-native", m["native_networkconf_id"])
 	assert.Equal(t, "custom", m["tagged_vlan_mgmt"])
 	assert.Equal(t, "customize", m["forward"])
@@ -174,7 +174,7 @@ func TestPortOverride_VLANRoundTrip(t *testing.T) {
 	})
 	po, err := toPortOverride(in)
 	require.NoError(t, err)
-	out := fromPortOverride(po)
+	out := fromPortOverride(po, nil)
 	assert.Equal(t, in["native_networkconf_id"], out["native_networkconf_id"])
 	assert.Equal(t, in["tagged_vlan_mgmt"], out["tagged_vlan_mgmt"])
 	assert.Equal(t, in["forward"], out["forward"])
@@ -216,29 +216,44 @@ func TestPortOverride_VLANValidators(t *testing.T) {
 	}
 }
 
-// portOverrideSetHash must key the set by port number ONLY, so a controller
-// echoing/auto-populating a per-port VLAN field (e.g. setting_preference or a
-// native VLAN) on an entry the user didn't declare it on cannot change the
-// element's set identity and churn the set (the backward-compat hazard). Two
-// blocks for the same port number must hash identically regardless of the VLAN
-// fields; different numbers must hash differently.
-func TestPortOverrideSetHash_StableByNumber(t *testing.T) {
-	bare := portOverrideData(map[string]interface{}{"number": 5})
-	echoed := portOverrideData(map[string]interface{}{
-		"number":                5,
-		"setting_preference":    "auto",
-		"native_networkconf_id": "net-auto",
-		"forward":               "native",
-	})
-	assert.Equal(t, portOverrideSetHash(bare), portOverrideSetHash(echoed),
-		"same port number must hash identically regardless of echoed VLAN fields")
+// An edited port_override block must change the element's set identity. A
+// number-only Set hash made same-number elements hash identically, so the SDK
+// saw the set as unchanged and the edit produced no diff and never reached the
+// controller.
+func TestPortOverrideSetHash_DetectsEdits(t *testing.T) {
+	elem, ok := ResourceDevice().Schema["port_override"].Elem.(*schema.Resource)
+	require.True(t, ok)
+	hash := schema.HashResource(elem)
 
-	other := portOverrideData(map[string]interface{}{"number": 6})
-	assert.NotEqual(t, portOverrideSetHash(bare), portOverrideSetHash(other),
-		"different port numbers must hash differently")
+	before := portOverrideData(map[string]interface{}{"number": 5, "name": "old"})
+	after := portOverrideData(map[string]interface{}{"number": 5, "name": "new"})
 
-	// Sanity: the hash must be a pure function of `number`.
-	assert.Equal(t, portOverrideSetHash(bare), portOverrideSetHash(bare))
+	assert.NotEqual(t, hash(before), hash(after),
+		"editing an attribute must change set identity, or the diff is invisible")
+	assert.Equal(t, hash(before), hash(before))
+}
+
+// The churn a number-only hash was working around is prevented at the read
+// layer instead: a field the controller auto-populates on a port the user never
+// declared it on is not surfaced, so it cannot enter the set or diff.
+func TestFromPortOverride_SurfacesOnlyDeclaredAttrs(t *testing.T) {
+	po := unifi.DevicePortOverrides{
+		PortIDX:           5,
+		Name:              "uplink",
+		SettingPreference: "auto",     // echoed by the controller
+		NATiveNetworkID:   "net-auto", // echoed by the controller
+	}
+
+	got := fromPortOverride(po, map[string]bool{"number": true, "name": true})
+	assert.Equal(t, 5, got["number"])
+	assert.Equal(t, "uplink", got["name"])
+	assert.NotContains(t, got, "setting_preference")
+	assert.NotContains(t, got, "native_networkconf_id")
+
+	// A nil declared-set means "surface everything", which is what import needs.
+	all := fromPortOverride(po, nil)
+	assert.Equal(t, "auto", all["setting_preference"])
+	assert.Equal(t, "net-auto", all["native_networkconf_id"])
 }
 
 // The new VLAN attributes must be Optional+Computed so an undeclared field reads
