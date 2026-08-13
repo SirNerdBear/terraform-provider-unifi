@@ -9,7 +9,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listdefault"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
-	"github.com/filipowm/terraform-provider-unifi/internal/provider/utils"
+	"github.com/SirNerdBear/terraform-provider-unifi/internal/provider/utils"
 )
 
 func DefaultEmptyList(elementType attr.Type) defaults.List {

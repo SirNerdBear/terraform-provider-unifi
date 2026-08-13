@@ -1,4 +1,4 @@
-module github.com/filipowm/terraform-provider-unifi
+module github.com/SirNerdBear/terraform-provider-unifi
 
 go 1.25.11
 

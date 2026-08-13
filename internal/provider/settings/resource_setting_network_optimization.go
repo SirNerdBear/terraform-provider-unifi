@@ -3,7 +3,7 @@ package settings
 import (
 	"context"
 
-	ut "github.com/filipowm/terraform-provider-unifi/internal/provider/types"
+	ut "github.com/SirNerdBear/terraform-provider-unifi/internal/provider/types"
 
 	"github.com/filipowm/go-unifi/unifi"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -11,7 +11,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
-	"github.com/filipowm/terraform-provider-unifi/internal/provider/base"
+	"github.com/SirNerdBear/terraform-provider-unifi/internal/provider/base"
 )
 
 type networkOptimizationModel struct {

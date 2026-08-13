@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/filipowm/terraform-provider-unifi/internal/provider/base"
-	"github.com/filipowm/terraform-provider-unifi/internal/provider/utils"
+	"github.com/SirNerdBear/terraform-provider-unifi/internal/provider/base"
+	"github.com/SirNerdBear/terraform-provider-unifi/internal/provider/utils"
 
 	"github.com/filipowm/go-unifi/unifi"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"

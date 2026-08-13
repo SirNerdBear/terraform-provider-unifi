@@ -1,4 +1,4 @@
-package main // import "github.com/filipowm/terraform-provider-unifi"
+package main // import "github.com/SirNerdBear/terraform-provider-unifi"
 
 import (
 	"context"
@@ -13,7 +13,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-mux/tf6muxserver"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 
-	"github.com/filipowm/terraform-provider-unifi/internal/provider"
+	"github.com/SirNerdBear/terraform-provider-unifi/internal/provider"
 )
 
 // these will be set by the goreleaser configuration
@@ -63,7 +63,7 @@ func main() {
 	log.SetFlags(log.Flags() &^ (log.Ldate | log.Ltime))
 
 	err = tf6server.Serve(
-		"registry.terraform.io/filipowm/unifi",
+		"registry.terraform.io/SirNerdBear/unifi",
 		muxServer.ProviderServer,
 		serveOpts...,
 	)

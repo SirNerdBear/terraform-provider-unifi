@@ -6,7 +6,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
 
-	ut "github.com/filipowm/terraform-provider-unifi/internal/provider/types"
+	ut "github.com/SirNerdBear/terraform-provider-unifi/internal/provider/types"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/int32validator"
 
@@ -22,7 +22,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
-	"github.com/filipowm/terraform-provider-unifi/internal/provider/base"
+	"github.com/SirNerdBear/terraform-provider-unifi/internal/provider/base"
 )
 
 // SSHKeyModel represents an SSH key configuration.

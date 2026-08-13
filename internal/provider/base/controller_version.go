@@ -11,7 +11,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 
-	"github.com/filipowm/terraform-provider-unifi/internal/provider/types"
+	"github.com/SirNerdBear/terraform-provider-unifi/internal/provider/types"
 )
 
 func AsVersion(versionString string) *version.Version {

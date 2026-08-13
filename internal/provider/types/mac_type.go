@@ -9,7 +9,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 
-	"github.com/filipowm/terraform-provider-unifi/internal/provider/utils"
+	"github.com/SirNerdBear/terraform-provider-unifi/internal/provider/utils"
 )
 
 // MACType is a custom string type for MAC addresses. Two values are treated as

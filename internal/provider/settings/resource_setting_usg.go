@@ -9,7 +9,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
 
-	ut "github.com/filipowm/terraform-provider-unifi/internal/provider/types"
+	ut "github.com/SirNerdBear/terraform-provider-unifi/internal/provider/types"
 
 	"github.com/filipowm/go-unifi/unifi"
 	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
@@ -27,8 +27,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 
-	"github.com/filipowm/terraform-provider-unifi/internal/provider/base"
-	"github.com/filipowm/terraform-provider-unifi/internal/provider/validators"
+	"github.com/SirNerdBear/terraform-provider-unifi/internal/provider/base"
+	"github.com/SirNerdBear/terraform-provider-unifi/internal/provider/validators"
 )
 
 // GeoIPFilteringModel represents the GeoIP filtering configuration.

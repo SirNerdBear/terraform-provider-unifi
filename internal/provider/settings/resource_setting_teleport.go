@@ -3,7 +3,7 @@ package settings
 import (
 	"context"
 
-	ut "github.com/filipowm/terraform-provider-unifi/internal/provider/types"
+	ut "github.com/SirNerdBear/terraform-provider-unifi/internal/provider/types"
 
 	"github.com/filipowm/go-unifi/unifi"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -12,8 +12,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
-	"github.com/filipowm/terraform-provider-unifi/internal/provider/base"
-	"github.com/filipowm/terraform-provider-unifi/internal/provider/validators"
+	"github.com/SirNerdBear/terraform-provider-unifi/internal/provider/base"
+	"github.com/SirNerdBear/terraform-provider-unifi/internal/provider/validators"
 )
 
 type teleportModel struct {

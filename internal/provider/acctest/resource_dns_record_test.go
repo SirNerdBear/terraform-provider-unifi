@@ -10,12 +10,12 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-testing/plancheck"
 
-	pt "github.com/filipowm/terraform-provider-unifi/internal/provider/testing"
+	pt "github.com/SirNerdBear/terraform-provider-unifi/internal/provider/testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 
-	"github.com/filipowm/terraform-provider-unifi/internal/provider/base"
+	"github.com/SirNerdBear/terraform-provider-unifi/internal/provider/base"
 )
 
 const testDNSRecordResourceName = "unifi_dns_record.test"

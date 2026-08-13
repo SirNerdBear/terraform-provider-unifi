@@ -9,8 +9,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 
-	"github.com/filipowm/terraform-provider-unifi/internal/provider/base"
-	"github.com/filipowm/terraform-provider-unifi/internal/provider/utils"
+	"github.com/SirNerdBear/terraform-provider-unifi/internal/provider/base"
+	"github.com/SirNerdBear/terraform-provider-unifi/internal/provider/utils"
 )
 
 func ResourceAccount() *schema.Resource {

@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/filipowm/terraform-provider-unifi/internal/provider/utils"
+	"github.com/SirNerdBear/terraform-provider-unifi/internal/provider/utils"
 
 	"github.com/filipowm/go-unifi/unifi"
 	"github.com/hashicorp/terraform-plugin-framework-validators/datasourcevalidator"
@@ -12,7 +12,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 
-	"github.com/filipowm/terraform-provider-unifi/internal/provider/base"
+	"github.com/SirNerdBear/terraform-provider-unifi/internal/provider/base"
 )
 
 var (

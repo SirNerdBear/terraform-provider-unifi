@@ -133,7 +133,7 @@ This provider is a fork of the original [paultyng/terraform-provider-unifi](http
    terraform {
      required_providers {
        unifi = {
-         source  = "filipowm/unifi"
+         source  = "SirNerdBear/unifi"
          version = "~> 0.0.1"  # Use the latest version
        }
      }
@@ -240,6 +240,6 @@ For developers extending or customizing the provider:
 
 If you encounter issues during migration:
 
-1. Check the [documentation](https://registry.terraform.io/providers/filipowm/unifi/latest/docs)
-2. Review examples in the [GitHub repository](https://github.com/filipowm/terraform-provider-unifi)
+1. Check the [documentation](https://registry.terraform.io/providers/SirNerdBear/unifi/latest/docs)
+2. Review examples in the [GitHub repository](https://github.com/SirNerdBear/terraform-provider-unifi)
 3. Open an issue on GitHub for assistance

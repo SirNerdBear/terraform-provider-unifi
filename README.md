@@ -1,7 +1,7 @@
-![Latest](https://img.shields.io/github/v/release/filipowm/terraform-provider-unifi)
-[![Docs](https://img.shields.io/badge/docs-reference-blue)](https://registry.terraform.io/providers/filipowm/unifi/latest)
-![Acceptance Tests](https://github.com/filipowm/terraform-provider-unifi/workflows/Acceptance%20Tests/badge.svg?event=push)
-![License](https://img.shields.io/github/license/filipowm/terraform-provider-unifi)
+![Latest](https://img.shields.io/github/v/release/SirNerdBear/terraform-provider-unifi)
+[![Docs](https://img.shields.io/badge/docs-reference-blue)](https://registry.terraform.io/providers/SirNerdBear/unifi/latest)
+![Acceptance Tests](https://github.com/SirNerdBear/terraform-provider-unifi/workflows/Acceptance%20Tests/badge.svg?event=push)
+![License](https://img.shields.io/github/license/SirNerdBear/terraform-provider-unifi)
 
 # UniFi Terraform Provider
 
@@ -26,13 +26,13 @@ Use a hard-wired connection to your controller to use this provider.
 
 ## Installation
 
-The provider is available in the [Terraform Registry](https://registry.terraform.io/providers/filipowm/unifi/latest). To use it in your Terraform configuration:
+The provider is available in the [Terraform Registry](https://registry.terraform.io/providers/SirNerdBear/unifi/latest). To use it in your Terraform configuration:
 
 ```hcl
 terraform {
     required_providers {
         unifi = {
-            source  = "filipowm/unifi"
+            source  = "SirNerdBear/unifi"
             version = "~> 1.0.0"  # Use the latest version
         }
     }
@@ -88,11 +88,11 @@ resource "unifi_network" "vlan_50" {
 }
 ```
 
-More examples can be found in the [documentation](https://registry.terraform.io/providers/filipowm/unifi/latest/docs).
+More examples can be found in the [documentation](https://registry.terraform.io/providers/SirNerdBear/unifi/latest/docs).
 
 ## Documentation
 
-Comprehensive documentation is available on the [Terraform Registry](https://registry.terraform.io/providers/filipowm/unifi/latest/docs)
+Comprehensive documentation is available on the [Terraform Registry](https://registry.terraform.io/providers/SirNerdBear/unifi/latest/docs)
 
 ## Supported Platforms
 

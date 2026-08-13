@@ -18,8 +18,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 
-	"github.com/filipowm/terraform-provider-unifi/internal/provider"
-	pt "github.com/filipowm/terraform-provider-unifi/internal/provider/testing"
+	"github.com/SirNerdBear/terraform-provider-unifi/internal/provider"
+	pt "github.com/SirNerdBear/terraform-provider-unifi/internal/provider/testing"
 )
 
 type providersMap map[string]func() (tfprotov6.ProviderServer, error)

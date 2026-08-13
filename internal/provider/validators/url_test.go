@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/filipowm/terraform-provider-unifi/internal/provider/validators"
+	"github.com/SirNerdBear/terraform-provider-unifi/internal/provider/validators"
 
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"

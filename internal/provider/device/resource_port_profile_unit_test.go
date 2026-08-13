@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/filipowm/terraform-provider-unifi/internal/provider/base"
+	"github.com/SirNerdBear/terraform-provider-unifi/internal/provider/base"
 )
 
 // fakePortProfileClient is a minimal unifi.Client used to drive resourcePortProfileUpdate

@@ -11,16 +11,16 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/logging"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 
-	"github.com/filipowm/terraform-provider-unifi/internal/provider/base"
-	"github.com/filipowm/terraform-provider-unifi/internal/provider/device"
-	"github.com/filipowm/terraform-provider-unifi/internal/provider/dns"
-	"github.com/filipowm/terraform-provider-unifi/internal/provider/firewall"
-	"github.com/filipowm/terraform-provider-unifi/internal/provider/network"
-	"github.com/filipowm/terraform-provider-unifi/internal/provider/radius"
-	"github.com/filipowm/terraform-provider-unifi/internal/provider/routing"
-	"github.com/filipowm/terraform-provider-unifi/internal/provider/settings"
-	"github.com/filipowm/terraform-provider-unifi/internal/provider/site"
-	"github.com/filipowm/terraform-provider-unifi/internal/provider/user"
+	"github.com/SirNerdBear/terraform-provider-unifi/internal/provider/base"
+	"github.com/SirNerdBear/terraform-provider-unifi/internal/provider/device"
+	"github.com/SirNerdBear/terraform-provider-unifi/internal/provider/dns"
+	"github.com/SirNerdBear/terraform-provider-unifi/internal/provider/firewall"
+	"github.com/SirNerdBear/terraform-provider-unifi/internal/provider/network"
+	"github.com/SirNerdBear/terraform-provider-unifi/internal/provider/radius"
+	"github.com/SirNerdBear/terraform-provider-unifi/internal/provider/routing"
+	"github.com/SirNerdBear/terraform-provider-unifi/internal/provider/settings"
+	"github.com/SirNerdBear/terraform-provider-unifi/internal/provider/site"
+	"github.com/SirNerdBear/terraform-provider-unifi/internal/provider/user"
 )
 
 const (

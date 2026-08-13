@@ -9,7 +9,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 
-	pt "github.com/filipowm/terraform-provider-unifi/internal/provider/testing"
+	pt "github.com/SirNerdBear/terraform-provider-unifi/internal/provider/testing"
 )
 
 func TestAccAccount_basic(t *testing.T) {

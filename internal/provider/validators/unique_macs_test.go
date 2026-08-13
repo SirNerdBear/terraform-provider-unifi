@@ -9,8 +9,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
-	ut "github.com/filipowm/terraform-provider-unifi/internal/provider/types"
-	"github.com/filipowm/terraform-provider-unifi/internal/provider/validators"
+	ut "github.com/SirNerdBear/terraform-provider-unifi/internal/provider/types"
+	"github.com/SirNerdBear/terraform-provider-unifi/internal/provider/validators"
 )
 
 func TestUniqueMACs(t *testing.T) {

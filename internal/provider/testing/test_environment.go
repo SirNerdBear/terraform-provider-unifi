@@ -17,7 +17,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 
-	"github.com/filipowm/terraform-provider-unifi/internal/provider/base"
+	"github.com/SirNerdBear/terraform-provider-unifi/internal/provider/base"
 
 	"github.com/filipowm/go-unifi/unifi"
 	tclog "github.com/testcontainers/testcontainers-go/log"

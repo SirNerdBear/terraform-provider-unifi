@@ -6,7 +6,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/filipowm/terraform-provider-unifi/internal/provider/types"
+	"github.com/SirNerdBear/terraform-provider-unifi/internal/provider/types"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"

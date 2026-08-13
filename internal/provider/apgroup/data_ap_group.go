@@ -10,8 +10,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
-	"github.com/filipowm/terraform-provider-unifi/internal/provider/base"
-	ut "github.com/filipowm/terraform-provider-unifi/internal/provider/types"
+	"github.com/SirNerdBear/terraform-provider-unifi/internal/provider/base"
+	ut "github.com/SirNerdBear/terraform-provider-unifi/internal/provider/types"
 )
 
 // APGroupDatasourceModel represents the data model for a UniFi AP Group data source.

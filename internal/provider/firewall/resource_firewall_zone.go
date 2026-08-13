@@ -7,14 +7,14 @@ import (
 	"github.com/filipowm/go-unifi/unifi/features"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 
-	ut "github.com/filipowm/terraform-provider-unifi/internal/provider/types"
+	ut "github.com/SirNerdBear/terraform-provider-unifi/internal/provider/types"
 
 	"github.com/filipowm/go-unifi/unifi"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
-	"github.com/filipowm/terraform-provider-unifi/internal/provider/base"
+	"github.com/SirNerdBear/terraform-provider-unifi/internal/provider/base"
 )
 
 var (

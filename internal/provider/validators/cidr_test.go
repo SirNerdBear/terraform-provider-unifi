@@ -8,7 +8,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/stretchr/testify/require"
 
-	"github.com/filipowm/terraform-provider-unifi/internal/provider/validators"
+	"github.com/SirNerdBear/terraform-provider-unifi/internal/provider/validators"
 )
 
 func TestCIDR(t *testing.T) {

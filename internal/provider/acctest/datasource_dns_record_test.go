@@ -7,8 +7,8 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 
-	"github.com/filipowm/terraform-provider-unifi/internal/provider/base"
-	pt "github.com/filipowm/terraform-provider-unifi/internal/provider/testing"
+	"github.com/SirNerdBear/terraform-provider-unifi/internal/provider/base"
+	pt "github.com/SirNerdBear/terraform-provider-unifi/internal/provider/testing"
 )
 
 const testDNSRecordDataSourceName = "data.unifi_dns_record.test"

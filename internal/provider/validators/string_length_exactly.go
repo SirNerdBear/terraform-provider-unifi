@@ -7,7 +7,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework-validators/helpers/validatordiag"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 
-	"github.com/filipowm/terraform-provider-unifi/internal/provider/types"
+	"github.com/SirNerdBear/terraform-provider-unifi/internal/provider/types"
 )
 
 func StringLengthExactly(length int) validator.String {

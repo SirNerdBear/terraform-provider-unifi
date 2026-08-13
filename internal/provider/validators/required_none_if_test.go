@@ -16,7 +16,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/filipowm/terraform-provider-unifi/internal/provider/validators"
+	"github.com/SirNerdBear/terraform-provider-unifi/internal/provider/validators"
 )
 
 // Common test case structure for string conditions.

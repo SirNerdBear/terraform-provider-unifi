@@ -16,7 +16,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/plancheck"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 
-	pt "github.com/filipowm/terraform-provider-unifi/internal/provider/testing"
+	pt "github.com/SirNerdBear/terraform-provider-unifi/internal/provider/testing"
 )
 
 // global_switch is a site-global singleton; serialize all tests that mutate it.

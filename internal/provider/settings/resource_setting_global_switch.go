@@ -18,10 +18,10 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
-	"github.com/filipowm/terraform-provider-unifi/internal/provider/base"
-	ut "github.com/filipowm/terraform-provider-unifi/internal/provider/types"
-	"github.com/filipowm/terraform-provider-unifi/internal/provider/utils"
-	"github.com/filipowm/terraform-provider-unifi/internal/provider/validators"
+	"github.com/SirNerdBear/terraform-provider-unifi/internal/provider/base"
+	ut "github.com/SirNerdBear/terraform-provider-unifi/internal/provider/types"
+	"github.com/SirNerdBear/terraform-provider-unifi/internal/provider/utils"
+	"github.com/SirNerdBear/terraform-provider-unifi/internal/provider/validators"
 )
 
 // aclL3IsolationModel models a single layer-3 isolation entry: a source network

@@ -7,7 +7,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 
-	"github.com/filipowm/terraform-provider-unifi/internal/provider/utils"
+	"github.com/SirNerdBear/terraform-provider-unifi/internal/provider/utils"
 )
 
 // UniqueMACs returns a Set validator that rejects a set whose elements denote the

@@ -6,7 +6,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 
-	"github.com/filipowm/terraform-provider-unifi/internal/provider/utils"
+	"github.com/SirNerdBear/terraform-provider-unifi/internal/provider/utils"
 )
 
 // IPv4 returns a validator which ensures that a string value is a valid IPv4 address.

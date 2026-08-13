@@ -9,7 +9,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/plancheck"
 
-	pt "github.com/filipowm/terraform-provider-unifi/internal/provider/testing"
+	pt "github.com/SirNerdBear/terraform-provider-unifi/internal/provider/testing"
 )
 
 // Using dedicated lock for IPS settings to avoid interference with other tests.
