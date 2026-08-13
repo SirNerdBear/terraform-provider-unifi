@@ -96,13 +96,38 @@ func portOverrideData(overrides map[string]interface{}) map[string]interface{} {
 		"voice_networkconf_id":  "",
 		"setting_preference":    "",
 
-		"port_security_enabled":     false,
-		"port_security_mac_address": stringSet(),
-		"stp_port_mode":             false,
-		"autoneg":                   false,
-		"speed":                     0,
-		"full_duplex":               false,
-		"isolation":                 false,
+		"dot1x_ctrl":                       "",
+		"dot1x_idle_timeout":               0,
+		"egress_rate_limit_kbps":           0,
+		"egress_rate_limit_kbps_enabled":   false,
+		"fec_mode":                         "",
+		"flow_control_enabled":             false,
+		"lldpmed_enabled":                  false,
+		"lldpmed_notify_enabled":           false,
+		"mirror_port_idx":                  0,
+		"multicast_router_networkconf_ids": stringSet(),
+		"port_keepalive_enabled":           false,
+		"priority_queue1_level":            0,
+		"priority_queue2_level":            0,
+		"priority_queue3_level":            0,
+		"priority_queue4_level":            0,
+		"stormctrl_bcast_enabled":          false,
+		"stormctrl_bcast_level":            0,
+		"stormctrl_bcast_rate":             0,
+		"stormctrl_mcast_enabled":          false,
+		"stormctrl_mcast_level":            0,
+		"stormctrl_mcast_rate":             0,
+		"stormctrl_type":                   "",
+		"stormctrl_ucast_enabled":          false,
+		"stormctrl_ucast_level":            0,
+		"stormctrl_ucast_rate":             0,
+		"port_security_enabled":            false,
+		"port_security_mac_address":        stringSet(),
+		"stp_port_mode":                    false,
+		"autoneg":                          false,
+		"speed":                            0,
+		"full_duplex":                      false,
+		"isolation":                        false,
 	}
 	for k, v := range overrides {
 		data[k] = v
@@ -448,4 +473,61 @@ func TestPortOverride_PinnedSpeedRoundTrip(t *testing.T) {
 	assert.Equal(t, 10000, out["speed"])
 	assert.Equal(t, true, out["stp_port_mode"])
 	assert.Equal(t, true, out["isolation"])
+}
+
+// Coverage gate: every field go-unifi carries on DevicePortOverrides must be
+// expressible, because a port_override entry is REPLACED on write -- anything
+// the schema cannot express is deleted from a managed port. Only the documented
+// exceptions may be missing.
+func TestPortOverrideSchema_CoversEveryClientField(t *testing.T) {
+	elem, ok := ResourceDevice().Schema["port_override"].Elem.(*schema.Resource)
+	require.True(t, ok)
+
+	// schema key -> go-unifi json name, where they differ.
+	alias := map[string]string{
+		"number":               "port_idx",
+		"excluded_network_ids": "excluded_networkconf_ids",
+		"aggregate_num_ports":  "aggregate_members",
+		"port_profile_id":      "portconf_id",
+	}
+	covered := map[string]bool{}
+	for k := range elem.Schema {
+		if a, ok := alias[k]; ok {
+			covered[a] = true
+		}
+		covered[k] = true
+	}
+
+	// qos_profile is a nested *DeviceQOSProfile and is handled out of band.
+	allowedMissing := map[string]bool{"qos_profile": true}
+
+	for _, jsonName := range clientPortOverrideFields() {
+		if allowedMissing[jsonName] {
+			continue
+		}
+		assert.True(t, covered[jsonName],
+			"go-unifi carries %q but port_override cannot express it, so managing a port would delete it", jsonName)
+	}
+}
+
+// clientPortOverrideFields lists the json names on unifi.DevicePortOverrides.
+// Hand-maintained against go-unifi v1.9.3: if a client upgrade adds a field,
+// this list and the schema both need it, and the test above is the reminder.
+func clientPortOverrideFields() []string {
+	return []string{
+		"aggregate_members", "autoneg", "dot1x_ctrl", "dot1x_idle_timeout",
+		"egress_rate_limit_kbps", "egress_rate_limit_kbps_enabled",
+		"excluded_networkconf_ids", "fec_mode", "flow_control_enabled", "forward",
+		"full_duplex", "isolation", "lldpmed_enabled", "lldpmed_notify_enabled",
+		"mirror_port_idx", "multicast_router_networkconf_ids", "name",
+		"native_networkconf_id", "op_mode", "poe_mode", "port_idx",
+		"port_keepalive_enabled", "portconf_id", "port_security_enabled",
+		"port_security_mac_address", "priority_queue1_level", "priority_queue2_level",
+		"priority_queue3_level", "priority_queue4_level", "qos_profile",
+		"setting_preference", "speed", "stormctrl_bcast_enabled",
+		"stormctrl_bcast_level", "stormctrl_bcast_rate", "stormctrl_mcast_enabled",
+		"stormctrl_mcast_level", "stormctrl_mcast_rate", "stormctrl_type",
+		"stormctrl_ucast_enabled", "stormctrl_ucast_level", "stormctrl_ucast_rate",
+		"stp_port_mode", "tagged_vlan_mgmt", "voice_networkconf_id",
+	}
 }

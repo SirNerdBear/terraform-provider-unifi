@@ -176,6 +176,139 @@ func ResourceDevice() *schema.Resource {
 							Optional:     true,
 							ValidateFunc: validation.StringInSlice([]string{"auto", "pasv24", "passthrough", "off"}, false),
 						},
+						// Remaining port_override fields, generated from
+						// go-unifi's DevicePortOverrides so the set is complete:
+						// an entry is REPLACED on write, so any field the schema
+						// cannot express is deleted from a managed port.
+						"dot1x_ctrl": {
+							Description:  "802.1X control mode for this port.",
+							Type:         schema.TypeString,
+							Optional:     true,
+							ValidateFunc: validation.StringInSlice([]string{"auto", "force_authorized", "force_unauthorized", "mac_based", "multi_host"}, false),
+						},
+						"dot1x_idle_timeout": {
+							Description: "802.1X idle timeout in seconds.",
+							Type:        schema.TypeInt,
+							Optional:    true,
+						},
+						"egress_rate_limit_kbps": {
+							Description: "Egress rate limit in Kbps. Requires `egress_rate_limit_kbps_enabled`.",
+							Type:        schema.TypeInt,
+							Optional:    true,
+						},
+						"egress_rate_limit_kbps_enabled": {
+							Description: "Enable the egress rate limit.",
+							Type:        schema.TypeBool,
+							Optional:    true,
+						},
+						"fec_mode": {
+							Description:  "Forward error correction mode, for SFP+ ports.",
+							Type:         schema.TypeString,
+							Optional:     true,
+							ValidateFunc: validation.StringInSlice([]string{"rs-fec", "fc-fec", "default", "disabled"}, false),
+						},
+						"flow_control_enabled": {
+							Description: "Enable 802.3x flow control (pause frames).",
+							Type:        schema.TypeBool,
+							Optional:    true,
+						},
+						"lldpmed_enabled": {
+							Description: "Enable LLDP-MED on this port.",
+							Type:        schema.TypeBool,
+							Optional:    true,
+						},
+						"lldpmed_notify_enabled": {
+							Description: "Send LLDP-MED topology change notifications.",
+							Type:        schema.TypeBool,
+							Optional:    true,
+						},
+						"mirror_port_idx": {
+							Description: "Source port to mirror, when `op_mode = \"mirror\"`.",
+							Type:        schema.TypeInt,
+							Optional:    true,
+						},
+						"multicast_router_networkconf_ids": {
+							Description: "Networks on which this port is treated as a multicast router port. Needs IGMP snooping enabled on the network.",
+							Type:        schema.TypeSet,
+							Optional:    true,
+							Elem:        &schema.Schema{Type: schema.TypeString},
+						},
+						"port_keepalive_enabled": {
+							Description: "Enable port keepalive.",
+							Type:        schema.TypeBool,
+							Optional:    true,
+						},
+						"priority_queue1_level": {
+							Description: "Egress priority queue 1 level.",
+							Type:        schema.TypeInt,
+							Optional:    true,
+						},
+						"priority_queue2_level": {
+							Description: "Egress priority queue 2 level.",
+							Type:        schema.TypeInt,
+							Optional:    true,
+						},
+						"priority_queue3_level": {
+							Description: "Egress priority queue 3 level.",
+							Type:        schema.TypeInt,
+							Optional:    true,
+						},
+						"priority_queue4_level": {
+							Description: "Egress priority queue 4 level.",
+							Type:        schema.TypeInt,
+							Optional:    true,
+						},
+						"stormctrl_bcast_enabled": {
+							Description: "Enable broadcast storm control.",
+							Type:        schema.TypeBool,
+							Optional:    true,
+						},
+						"stormctrl_bcast_level": {
+							Description: "Broadcast storm control threshold as a percentage. Used when `stormctrl_type = \"level\"`.",
+							Type:        schema.TypeInt,
+							Optional:    true,
+						},
+						"stormctrl_bcast_rate": {
+							Description: "Broadcast storm control threshold in packets per second. Used when `stormctrl_type = \"rate\"`.",
+							Type:        schema.TypeInt,
+							Optional:    true,
+						},
+						"stormctrl_mcast_enabled": {
+							Description: "Enable multicast storm control.",
+							Type:        schema.TypeBool,
+							Optional:    true,
+						},
+						"stormctrl_mcast_level": {
+							Description: "Multicast storm control threshold as a percentage.",
+							Type:        schema.TypeInt,
+							Optional:    true,
+						},
+						"stormctrl_mcast_rate": {
+							Description: "Multicast storm control threshold in packets per second.",
+							Type:        schema.TypeInt,
+							Optional:    true,
+						},
+						"stormctrl_type": {
+							Description:  "Whether storm control thresholds are expressed as a percentage (`level`) or packets per second (`rate`).",
+							Type:         schema.TypeString,
+							Optional:     true,
+							ValidateFunc: validation.StringInSlice([]string{"level", "rate"}, false),
+						},
+						"stormctrl_ucast_enabled": {
+							Description: "Enable unknown-unicast storm control.",
+							Type:        schema.TypeBool,
+							Optional:    true,
+						},
+						"stormctrl_ucast_level": {
+							Description: "Unknown-unicast storm control threshold as a percentage.",
+							Type:        schema.TypeInt,
+							Optional:    true,
+						},
+						"stormctrl_ucast_rate": {
+							Description: "Unknown-unicast storm control threshold in packets per second.",
+							Type:        schema.TypeInt,
+							Optional:    true,
+						},
 						// The controller accepts all of the following on a port
 						// override; they were simply missing from the schema.
 						//
@@ -908,6 +1041,36 @@ func toPortOverride(data map[string]interface{}) (unifi.DevicePortOverrides, err
 	opMode, _ := data["op_mode"].(string)
 	poeMode, _ := data["poe_mode"].(string)
 	aggregateNumPorts, _ := data["aggregate_num_ports"].(int)
+	dot1xCtrl, _ := data["dot1x_ctrl"].(string)
+	dot1xIdleTimeout, _ := data["dot1x_idle_timeout"].(int)
+	egressRateLimitKbps, _ := data["egress_rate_limit_kbps"].(int)
+	egressRateLimitKbpsEnabled, _ := data["egress_rate_limit_kbps_enabled"].(bool)
+	fecMode, _ := data["fec_mode"].(string)
+	flowControlEnabled, _ := data["flow_control_enabled"].(bool)
+	lldpmedEnabled, _ := data["lldpmed_enabled"].(bool)
+	lldpmedNotifyEnabled, _ := data["lldpmed_notify_enabled"].(bool)
+	mirrorPortIdx, _ := data["mirror_port_idx"].(int)
+	// Guarded, not asserted: callers may omit the key entirely and a hard
+	// assertion on a nil interface panics.
+	var multicastRouterNetworkconfIds []string
+	if set, ok := data["multicast_router_networkconf_ids"].(*schema.Set); ok {
+		multicastRouterNetworkconfIds, _ = utils.SetToStringSlice(set)
+	}
+	portKeepaliveEnabled, _ := data["port_keepalive_enabled"].(bool)
+	priorityQueue1Level, _ := data["priority_queue1_level"].(int)
+	priorityQueue2Level, _ := data["priority_queue2_level"].(int)
+	priorityQueue3Level, _ := data["priority_queue3_level"].(int)
+	priorityQueue4Level, _ := data["priority_queue4_level"].(int)
+	stormctrlBcastEnabled, _ := data["stormctrl_bcast_enabled"].(bool)
+	stormctrlBcastLevel, _ := data["stormctrl_bcast_level"].(int)
+	stormctrlBcastRate, _ := data["stormctrl_bcast_rate"].(int)
+	stormctrlMcastEnabled, _ := data["stormctrl_mcast_enabled"].(bool)
+	stormctrlMcastLevel, _ := data["stormctrl_mcast_level"].(int)
+	stormctrlMcastRate, _ := data["stormctrl_mcast_rate"].(int)
+	stormctrlType, _ := data["stormctrl_type"].(string)
+	stormctrlUcastEnabled, _ := data["stormctrl_ucast_enabled"].(bool)
+	stormctrlUcastLevel, _ := data["stormctrl_ucast_level"].(int)
+	stormctrlUcastRate, _ := data["stormctrl_ucast_rate"].(int)
 	portSecurityEnabled, _ := data["port_security_enabled"].(bool)
 	stpPortMode, _ := data["stp_port_mode"].(bool)
 	autoneg, _ := data["autoneg"].(bool)
@@ -959,13 +1122,38 @@ func toPortOverride(data map[string]interface{}) (unifi.DevicePortOverrides, err
 
 		// All bool + omitempty: a false is omitted and the controller keeps
 		// its existing value. These can be turned on, not off.
-		PortSecurityEnabled:    portSecurityEnabled,
-		PortSecurityMACAddress: portSecurityMACs,
-		StpPortMode:            stpPortMode,
-		Autoneg:                autoneg,
-		Speed:                  speed,
-		FullDuplex:             fullDuplex,
-		Isolation:              isolation,
+		Dot1XCtrl:                    dot1xCtrl,
+		Dot1XIDleTimeout:             dot1xIdleTimeout,
+		EgressRateLimitKbps:          egressRateLimitKbps,
+		EgressRateLimitKbpsEnabled:   egressRateLimitKbpsEnabled,
+		FecMode:                      fecMode,
+		FlowControlEnabled:           flowControlEnabled,
+		LldpmedEnabled:               lldpmedEnabled,
+		LldpmedNotifyEnabled:         lldpmedNotifyEnabled,
+		MirrorPortIDX:                mirrorPortIdx,
+		MulticastRouterNetworkIDs:    multicastRouterNetworkconfIds,
+		PortKeepaliveEnabled:         portKeepaliveEnabled,
+		PriorityQueue1Level:          priorityQueue1Level,
+		PriorityQueue2Level:          priorityQueue2Level,
+		PriorityQueue3Level:          priorityQueue3Level,
+		PriorityQueue4Level:          priorityQueue4Level,
+		StormctrlBroadcastastEnabled: stormctrlBcastEnabled,
+		StormctrlBroadcastastLevel:   stormctrlBcastLevel,
+		StormctrlBroadcastastRate:    stormctrlBcastRate,
+		StormctrlMcastEnabled:        stormctrlMcastEnabled,
+		StormctrlMcastLevel:          stormctrlMcastLevel,
+		StormctrlMcastRate:           stormctrlMcastRate,
+		StormctrlType:                stormctrlType,
+		StormctrlUcastEnabled:        stormctrlUcastEnabled,
+		StormctrlUcastLevel:          stormctrlUcastLevel,
+		StormctrlUcastRate:           stormctrlUcastRate,
+		PortSecurityEnabled:          portSecurityEnabled,
+		PortSecurityMACAddress:       portSecurityMACs,
+		StpPortMode:                  stpPortMode,
+		Autoneg:                      autoneg,
+		Speed:                        speed,
+		FullDuplex:                   fullDuplex,
+		Isolation:                    isolation,
 	}
 
 	// go-unifi v1.9 tracks the current controller API, which expresses a LAG
@@ -1016,13 +1204,38 @@ func fromPortOverride(po unifi.DevicePortOverrides, declared map[string]bool) ma
 		"voice_networkconf_id":  po.VoiceNetworkID,
 		"setting_preference":    po.SettingPreference,
 
-		"port_security_enabled":     po.PortSecurityEnabled,
-		"port_security_mac_address": utils.StringSliceToSet(po.PortSecurityMACAddress),
-		"stp_port_mode":             po.StpPortMode,
-		"autoneg":                   po.Autoneg,
-		"speed":                     po.Speed,
-		"full_duplex":               po.FullDuplex,
-		"isolation":                 po.Isolation,
+		"dot1x_ctrl":                       po.Dot1XCtrl,
+		"dot1x_idle_timeout":               po.Dot1XIDleTimeout,
+		"egress_rate_limit_kbps":           po.EgressRateLimitKbps,
+		"egress_rate_limit_kbps_enabled":   po.EgressRateLimitKbpsEnabled,
+		"fec_mode":                         po.FecMode,
+		"flow_control_enabled":             po.FlowControlEnabled,
+		"lldpmed_enabled":                  po.LldpmedEnabled,
+		"lldpmed_notify_enabled":           po.LldpmedNotifyEnabled,
+		"mirror_port_idx":                  po.MirrorPortIDX,
+		"multicast_router_networkconf_ids": utils.StringSliceToSet(po.MulticastRouterNetworkIDs),
+		"port_keepalive_enabled":           po.PortKeepaliveEnabled,
+		"priority_queue1_level":            po.PriorityQueue1Level,
+		"priority_queue2_level":            po.PriorityQueue2Level,
+		"priority_queue3_level":            po.PriorityQueue3Level,
+		"priority_queue4_level":            po.PriorityQueue4Level,
+		"stormctrl_bcast_enabled":          po.StormctrlBroadcastastEnabled,
+		"stormctrl_bcast_level":            po.StormctrlBroadcastastLevel,
+		"stormctrl_bcast_rate":             po.StormctrlBroadcastastRate,
+		"stormctrl_mcast_enabled":          po.StormctrlMcastEnabled,
+		"stormctrl_mcast_level":            po.StormctrlMcastLevel,
+		"stormctrl_mcast_rate":             po.StormctrlMcastRate,
+		"stormctrl_type":                   po.StormctrlType,
+		"stormctrl_ucast_enabled":          po.StormctrlUcastEnabled,
+		"stormctrl_ucast_level":            po.StormctrlUcastLevel,
+		"stormctrl_ucast_rate":             po.StormctrlUcastRate,
+		"port_security_enabled":            po.PortSecurityEnabled,
+		"port_security_mac_address":        utils.StringSliceToSet(po.PortSecurityMACAddress),
+		"stp_port_mode":                    po.StpPortMode,
+		"autoneg":                          po.Autoneg,
+		"speed":                            po.Speed,
+		"full_duplex":                      po.FullDuplex,
+		"isolation":                        po.Isolation,
 	}
 
 	if declared == nil {
