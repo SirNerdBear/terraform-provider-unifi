@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -765,6 +766,35 @@ func ResourceDevice() *schema.Resource {
 				},
 			},
 
+			"ethernet_override": {
+				Description: "Per-interface network group on a gateway (`eth0`, `eth1`, ...). This is where a " +
+					"UDM/UXG keeps its port config -- gateways carry both these AND port_override. The controller " +
+					"REPLACES the whole list on write, so declare every interface you want to keep.",
+				Type:     schema.TypeSet,
+				Optional: true,
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"ifname": {
+							Description:  "Interface name, e.g. `eth0`.",
+							Type:         schema.TypeString,
+							Required:     true,
+							ValidateFunc: validation.StringMatch(regexp.MustCompile(`^eth[0-9]{1,2}$`), "must be ethN"),
+						},
+						"network_group": {
+							Description:  "`LAN`, `LAN2`..`LAN8`, `WAN`, `WAN2`..`WAN9`.",
+							Type:         schema.TypeString,
+							Optional:     true,
+							ValidateFunc: validation.StringMatch(regexp.MustCompile(`^(LAN[2-8]?|WAN[2-9]?)$`), "must be LAN[2-8] or WAN[2-9]"),
+						},
+						"disabled": {
+							Description: "Administratively down.",
+							Type:        schema.TypeBool,
+							Optional:    true,
+						},
+					},
+				},
+			},
+
 			"rps_port_override": {
 				Description: "Outlet configuration for a redundant power supply (USP-RPS). Each block is one outlet. " +
 					"The controller REPLACES the whole outlet table on write, so declare every outlet you want to keep. " +
@@ -954,6 +984,10 @@ func resourceDeviceUpdate(ctx context.Context, d *schema.ResourceData, meta inte
 		req.RpsOverride = current.RpsOverride
 		if rpsPorts.Len() > 0 {
 			req.RpsOverride.RpsPortTable = rpsPortTable(rpsPorts)
+		}
+		req.EthernetOverrides = current.EthernetOverrides
+		if eth, _ := d.Get("ethernet_override").(*schema.Set); eth.Len() > 0 {
+			req.EthernetOverrides = ethernetOverrides(eth)
 		}
 	}
 
@@ -1155,6 +1189,41 @@ func declaredZeros(d *schema.ResourceData) map[string]interface{} {
 				out[name] = ""
 			}
 		}
+	}
+	return out
+}
+
+// ethernetOverrides converts declared blocks into the controller's list.
+func ethernetOverrides(set *schema.Set) []unifi.DeviceEthernetOverrides {
+	out := make([]unifi.DeviceEthernetOverrides, 0, set.Len())
+	for _, raw := range set.List() {
+		m, _ := raw.(map[string]interface{})
+		ifname, _ := m["ifname"].(string)
+		group, _ := m["network_group"].(string)
+		disabled, _ := m["disabled"].(bool)
+		out = append(out, unifi.DeviceEthernetOverrides{
+			Ifname:       ifname,
+			NetworkGroup: group,
+			Disabled:     disabled,
+		})
+	}
+	return out
+}
+
+// ethernetFromDevice returns state only when the block is declared, so a
+// device nobody manages this way never produces a diff.
+func ethernetFromDevice(resp *unifi.Device, d *schema.ResourceData) []map[string]interface{} {
+	declared, _ := d.Get("ethernet_override").(*schema.Set)
+	if declared == nil || declared.Len() == 0 {
+		return nil
+	}
+	out := make([]map[string]interface{}, 0, len(resp.EthernetOverrides))
+	for _, e := range resp.EthernetOverrides {
+		out = append(out, map[string]interface{}{
+			"ifname":        e.Ifname,
+			"network_group": e.NetworkGroup,
+			"disabled":      e.Disabled,
+		})
 	}
 	return out
 }
