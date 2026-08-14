@@ -4,9 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/hashicorp/go-cty/cty"
 
 	"github.com/SirNerdBear/terraform-provider-unifi/internal/provider/utils"
 
@@ -178,6 +181,76 @@ func ResourceDevice() *schema.Resource {
 				Description: "SNMP location string.",
 				Type:        schema.TypeString,
 				Optional:    true,
+			},
+
+			// Every lcm_* field carries `omitempty`, so an undeclared one is
+			// never sent -- but that also means a zero value cannot be written.
+			// Orientation cannot be set back to 0, and the *_override booleans
+			// cannot be turned off, from Terraform.
+			"lcm_brightness": {
+				Description:  "LCD screen brightness, 1-100. Requires `lcm_brightness_override = true`.",
+				Type:         schema.TypeInt,
+				Optional:     true,
+				Computed:     true,
+				ValidateFunc: validation.IntBetween(1, 100),
+			},
+			"lcm_brightness_override": {
+				Description: "Use `lcm_brightness` instead of the controller default.",
+				Type:        schema.TypeBool,
+				Optional:    true,
+				Computed:    true,
+			},
+			"lcm_idle_timeout": {
+				Description:  "Seconds before the LCD screen sleeps, 10-3600. Requires `lcm_idle_timeout_override = true`.",
+				Type:         schema.TypeInt,
+				Optional:     true,
+				Computed:     true,
+				ValidateFunc: validation.IntBetween(10, 3600),
+			},
+			"lcm_idle_timeout_override": {
+				Description: "Use `lcm_idle_timeout` instead of the controller default.",
+				Type:        schema.TypeBool,
+				Optional:    true,
+				Computed:    true,
+			},
+			"lcm_night_mode_begins": {
+				Description: "Start of LCD night mode, `HH:MM` on a 24-hour clock.",
+				Type:        schema.TypeString,
+				Optional:    true,
+				Computed:    true,
+			},
+			"lcm_night_mode_ends": {
+				Description: "End of LCD night mode, `HH:MM` on a 24-hour clock.",
+				Type:        schema.TypeString,
+				Optional:    true,
+				Computed:    true,
+			},
+			"lcm_orientation_override": {
+				Description: "LCD screen rotation in degrees: 0, 90, 180 or 270. 0 cannot be written " +
+					"(it is the zero value and is omitted); rotate back through the UI.",
+				Type:         schema.TypeInt,
+				Optional:     true,
+				Computed:     true,
+				ValidateFunc: validation.IntInSlice([]int{0, 90, 180, 270}),
+			},
+			"lcm_settings_restricted_access": {
+				Description: "Require the device password to change settings from the LCD screen.",
+				Type:        schema.TypeBool,
+				Optional:    true,
+				Computed:    true,
+			},
+			"lcm_tracker_enabled": {
+				Description: "Show the device's location tracker on the LCD screen.",
+				Type:        schema.TypeBool,
+				Optional:    true,
+				Computed:    true,
+			},
+			"lcm_tracker_seed": {
+				Description:  "Location tracker seed, up to 50 characters.",
+				Type:         schema.TypeString,
+				Optional:     true,
+				Computed:     true,
+				ValidateFunc: validation.StringLenBetween(0, 50),
 			},
 			"stp_priority": {
 				Description:  "Spanning tree bridge priority. Lower wins the root election; 32768 is the default.",
@@ -692,6 +765,38 @@ func ResourceDevice() *schema.Resource {
 				},
 			},
 
+			"rps_port_override": {
+				Description: "Outlet configuration for a redundant power supply (USP-RPS). Each block is one outlet. " +
+					"The controller REPLACES the whole outlet table on write, so declare every outlet you want to keep. " +
+					"Leaving the block out entirely preserves whatever the controller has.",
+				Type:     schema.TypeSet,
+				Optional: true,
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"number": {
+							Description:  "Outlet number, 1-8.",
+							Type:         schema.TypeInt,
+							Required:     true,
+							ValidateFunc: validation.IntBetween(1, 8),
+						},
+						"name": {
+							Description:  "Outlet name, up to 32 characters.",
+							Type:         schema.TypeString,
+							Optional:     true,
+							ValidateFunc: validation.StringLenBetween(0, 32),
+						},
+						"mode": {
+							Description: "`auto` (supply power only when the device's own PSU fails), `force_active`, " +
+								"`manual` or `disabled`.",
+							Type:     schema.TypeString,
+							Optional: true,
+							ValidateFunc: validation.StringInSlice(
+								[]string{"auto", "force_active", "manual", "disabled"}, false),
+						},
+					},
+				},
+			},
+
 			"allow_adoption": {
 				Description: "Whether to automatically adopt the device when creating this resource. When true:\n" +
 					"* The controller will attempt to adopt the device\n" +
@@ -828,9 +933,13 @@ func resourceDeviceUpdate(ctx context.Context, d *schema.ResourceData, meta inte
 	// controller-side values. (Radio table additionally needs the full merged
 	// array sent because UniFi replaces arrays wholesale on PUT.) When neither
 	// block is declared, nothing extra is sent (prior behavior).
+	// rps_override is fetched unconditionally, not only when declared. It is a
+	// bare struct with `omitempty`, which does nothing on a struct, so leaving
+	// it zero serialises {} and erases a redundant power supply's outlet table.
 	radios, _ := d.Get("radio").(*schema.Set)
 	etherLighting, _ := d.Get("ether_lighting").([]interface{})
-	if radios.Len() > 0 || len(etherLighting) > 0 {
+	rpsPorts, _ := d.Get("rps_port_override").(*schema.Set)
+	{
 		current, err := c.GetDevice(ctx, site, d.Id())
 		if err != nil {
 			return diag.FromErr(fmt.Errorf("unable to read current device config for merge: %w", err))
@@ -841,6 +950,10 @@ func resourceDeviceUpdate(ctx context.Context, d *schema.ResourceData, meta inte
 		if len(etherLighting) > 0 {
 			etherLightingMap, _ := etherLighting[0].(map[string]interface{})
 			req.EtherLighting = mergeEtherLighting(current.EtherLighting, etherLightingMap)
+		}
+		req.RpsOverride = current.RpsOverride
+		if rpsPorts.Len() > 0 {
+			req.RpsOverride.RpsPortTable = rpsPortTable(rpsPorts)
 		}
 	}
 
@@ -857,6 +970,17 @@ func resourceDeviceUpdate(ctx context.Context, d *schema.ResourceData, meta inte
 	if !found {
 		d.SetId("")
 		return nil
+	}
+
+	// Second, minimal PUT carrying only the zero values go-unifi dropped. Safe
+	// because the device PUT merges: everything absent from this body keeps
+	// whatever the previous write left.
+	if zeros := declaredZeros(d); len(zeros) > 0 {
+		if err := c.Do(ctx, http.MethodPut,
+			fmt.Sprintf("s/%s/rest/device/%s", site, req.ID), zeros, nil); err != nil {
+			return diag.FromErr(fmt.Errorf("unable to write zero-valued attributes %v: %w",
+				zeros, err))
+		}
 	}
 
 	_, err = waitForDeviceState(ctx, d, meta, unifi.DeviceStateConnected, []unifi.DeviceState{unifi.DeviceStateAdopting, unifi.DeviceStateProvisioning}, 1*time.Minute)
@@ -948,28 +1072,39 @@ func resourceDeviceSetResourceData(resp *unifi.Device, d *schema.ResourceData, s
 			"dns2":       resp.ConfigNetwork.DNS2,
 			"dns_suffix": resp.ConfigNetwork.DNSsuffix,
 		}},
-		"dpi_enabled":                   resp.DPIEnabled,
-		"dot1x_fallback_networkconf_id": resp.Dot1XFallbackNetworkID,
-		"dot1x_portctrl_enabled":        resp.Dot1XPortctrlEnabled,
-		"flowctrl_enabled":              resp.FlowctrlEnabled,
-		"jumboframe_enabled":            resp.JumboframeEnabled,
-		"led_override":                  resp.LedOverride,
-		"led_override_color":            resp.LedOverrideColor,
-		"led_override_color_brightness": resp.LedOverrideColorBrightness,
-		"mgmt_network_id":               resp.MgmtNetworkID,
-		"outlet_enabled":                resp.OutletEnabled,
-		"outlet_power_cycle_enabled":    resp.OutletPowerCycleEnabled,
-		"power_source_ctrl":             resp.PowerSourceCtrl,
-		"power_source_ctrl_budget":      resp.PowerSourceCtrlBudget,
-		"power_source_ctrl_enabled":     resp.PowerSourceCtrlEnabled,
-		"resetbtn_enabled":              resp.ResetbtnEnabled,
-		"snmp_contact":                  resp.SnmpContact,
-		"snmp_location":                 resp.SnmpLocation,
-		"stp_priority":                  resp.StpPriority,
-		"stp_version":                   resp.StpVersion,
-		"port_override":                 portOverrides,
-		"radio":                         radiosFromDevice(resp, d),
-		"ether_lighting":                etherLightingFromDevice(resp, d),
+		"dpi_enabled":                    resp.DPIEnabled,
+		"dot1x_fallback_networkconf_id":  resp.Dot1XFallbackNetworkID,
+		"dot1x_portctrl_enabled":         resp.Dot1XPortctrlEnabled,
+		"flowctrl_enabled":               resp.FlowctrlEnabled,
+		"jumboframe_enabled":             resp.JumboframeEnabled,
+		"led_override":                   resp.LedOverride,
+		"led_override_color":             resp.LedOverrideColor,
+		"led_override_color_brightness":  resp.LedOverrideColorBrightness,
+		"mgmt_network_id":                resp.MgmtNetworkID,
+		"outlet_enabled":                 resp.OutletEnabled,
+		"outlet_power_cycle_enabled":     resp.OutletPowerCycleEnabled,
+		"power_source_ctrl":              resp.PowerSourceCtrl,
+		"power_source_ctrl_budget":       resp.PowerSourceCtrlBudget,
+		"power_source_ctrl_enabled":      resp.PowerSourceCtrlEnabled,
+		"resetbtn_enabled":               resp.ResetbtnEnabled,
+		"snmp_contact":                   resp.SnmpContact,
+		"snmp_location":                  resp.SnmpLocation,
+		"lcm_brightness":                 resp.LcmBrightness,
+		"lcm_brightness_override":        resp.LcmBrightnessOverride,
+		"lcm_idle_timeout":               resp.LcmIDleTimeout,
+		"lcm_idle_timeout_override":      resp.LcmIDleTimeoutOverride,
+		"lcm_night_mode_begins":          resp.LcmNightModeBegins,
+		"lcm_night_mode_ends":            resp.LcmNightModeEnds,
+		"lcm_orientation_override":       resp.LcmOrientationOverride,
+		"lcm_settings_restricted_access": resp.LcmSettingsRestrictedAccess,
+		"lcm_tracker_enabled":            resp.LcmTrackerEnabled,
+		"lcm_tracker_seed":               resp.LcmTrackerSeed,
+		"stp_priority":                   resp.StpPriority,
+		"stp_version":                    resp.StpVersion,
+		"port_override":                  portOverrides,
+		"radio":                          radiosFromDevice(resp, d),
+		"ether_lighting":                 etherLightingFromDevice(resp, d),
+		"rps_port_override":              rpsPortsFromDevice(resp, d),
 	}
 	for k, v := range values {
 		if err := d.Set(k, v); err != nil {
@@ -978,6 +1113,85 @@ func resourceDeviceSetResourceData(resp *unifi.Device, d *schema.ResourceData, s
 	}
 
 	return nil
+}
+
+// notWritten are attributes that exist only in the provider, so they must
+// never be sent to the controller by writeDeclaredZeros.
+var notWritten = map[string]bool{
+	"mac": true, "name": true, "site": true, "id": true,
+	"allow_adoption": true, "forget_on_destroy": true, "disabled": true,
+}
+
+// declaredZeros returns the scalar attributes the practitioner explicitly set
+// to a zero value (0, false, ""). go-unifi tags most of them `omitempty`, so
+// those are dropped from the payload -- and because the controller's device
+// PUT MERGES rather than replaces, the old value simply survives and the write
+// silently does nothing.
+//
+// Verified on hardware: the controller accepts an explicit 0 and stores it, so
+// this is a client limitation, not a controller one.
+func declaredZeros(d *schema.ResourceData) map[string]interface{} {
+	raw := d.GetRawConfig()
+	if raw.IsNull() || !raw.IsKnown() || !raw.Type().IsObjectType() {
+		return nil
+	}
+	out := map[string]interface{}{}
+	for name, v := range raw.AsValueMap() {
+		if notWritten[name] || v.IsNull() || !v.IsKnown() {
+			continue
+		}
+		switch v.Type() {
+		case cty.Number:
+			n, _ := v.AsBigFloat().Float64()
+			if n == 0 {
+				out[name] = 0
+			}
+		case cty.Bool:
+			if v.False() {
+				out[name] = false
+			}
+		case cty.String:
+			if v.AsString() == "" {
+				out[name] = ""
+			}
+		}
+	}
+	return out
+}
+
+// rpsPortTable converts declared outlet blocks into the controller's table.
+func rpsPortTable(ports *schema.Set) []unifi.DeviceRpsPortTable {
+	out := make([]unifi.DeviceRpsPortTable, 0, ports.Len())
+	for _, raw := range ports.List() {
+		m, _ := raw.(map[string]interface{})
+		number, _ := m["number"].(int)
+		name, _ := m["name"].(string)
+		mode, _ := m["mode"].(string)
+		out = append(out, unifi.DeviceRpsPortTable{
+			PortIDX:  number,
+			Name:     name,
+			PortMode: mode,
+		})
+	}
+	return out
+}
+
+// rpsPortsFromDevice returns outlet state only when the user declares the
+// block, so unmanaged devices never produce a diff.
+func rpsPortsFromDevice(resp *unifi.Device, d *schema.ResourceData) []map[string]interface{} {
+	declared, _ := d.Get("rps_port_override").(*schema.Set)
+	if declared == nil || declared.Len() == 0 {
+		return nil
+	}
+	out := make([]map[string]interface{}, 0, len(resp.RpsOverride.RpsPortTable))
+	for _, p := range resp.RpsOverride.RpsPortTable {
+		out = append(out, map[string]interface{}{
+			"number": p.PortIDX,
+			"name":   p.Name,
+			"mode":   p.PortMode,
+		})
+	}
+	return out
 }
 
 // etherLightingFromDevice returns ether_lighting state only when the user
@@ -1146,32 +1360,52 @@ func resourceDeviceGetResourceData(d *schema.ResourceData) (*unifi.Device, error
 	snmpLocation, _ := d.Get("snmp_location").(string)
 	stpPriority, _ := d.Get("stp_priority").(string)
 	stpVersion, _ := d.Get("stp_version").(string)
+	lcmBrightness, _ := d.Get("lcm_brightness").(int)
+	lcmBrightnessOverride, _ := d.Get("lcm_brightness_override").(bool)
+	lcmIdleTimeout, _ := d.Get("lcm_idle_timeout").(int)
+	lcmIdleTimeoutOverride, _ := d.Get("lcm_idle_timeout_override").(bool)
+	lcmNightModeBegins, _ := d.Get("lcm_night_mode_begins").(string)
+	lcmNightModeEnds, _ := d.Get("lcm_night_mode_ends").(string)
+	lcmOrientationOverride, _ := d.Get("lcm_orientation_override").(int)
+	lcmSettingsRestrictedAccess, _ := d.Get("lcm_settings_restricted_access").(bool)
+	lcmTrackerEnabled, _ := d.Get("lcm_tracker_enabled").(bool)
+	lcmTrackerSeed, _ := d.Get("lcm_tracker_seed").(string)
 
 	return &unifi.Device{
-		MAC:                        mac,
-		Name:                       name,
-		SwitchVLANEnabled:          switchVLANEnabled,
-		ConfigNetwork:              configNetwork,
-		DPIEnabled:                 dpiEnabled,
-		Dot1XFallbackNetworkID:     dot1xFallbackNetworkconfId,
-		Dot1XPortctrlEnabled:       dot1xPortctrlEnabled,
-		FlowctrlEnabled:            flowctrlEnabled,
-		JumboframeEnabled:          jumboframeEnabled,
-		LedOverride:                ledOverride,
-		LedOverrideColor:           ledOverrideColor,
-		LedOverrideColorBrightness: ledOverrideColorBrightness,
-		MgmtNetworkID:              mgmtNetworkId,
-		OutletEnabled:              outletEnabled,
-		OutletPowerCycleEnabled:    outletPowerCycleEnabled,
-		PowerSourceCtrl:            powerSourceCtrl,
-		PowerSourceCtrlBudget:      powerSourceCtrlBudget,
-		PowerSourceCtrlEnabled:     powerSourceCtrlEnabled,
-		ResetbtnEnabled:            resetbtnEnabled,
-		SnmpContact:                snmpContact,
-		SnmpLocation:               snmpLocation,
-		StpPriority:                stpPriority,
-		StpVersion:                 stpVersion,
-		PortOverrides:              pos,
+		MAC:                         mac,
+		Name:                        name,
+		SwitchVLANEnabled:           switchVLANEnabled,
+		ConfigNetwork:               configNetwork,
+		DPIEnabled:                  dpiEnabled,
+		Dot1XFallbackNetworkID:      dot1xFallbackNetworkconfId,
+		Dot1XPortctrlEnabled:        dot1xPortctrlEnabled,
+		FlowctrlEnabled:             flowctrlEnabled,
+		JumboframeEnabled:           jumboframeEnabled,
+		LedOverride:                 ledOverride,
+		LedOverrideColor:            ledOverrideColor,
+		LedOverrideColorBrightness:  ledOverrideColorBrightness,
+		MgmtNetworkID:               mgmtNetworkId,
+		OutletEnabled:               outletEnabled,
+		OutletPowerCycleEnabled:     outletPowerCycleEnabled,
+		PowerSourceCtrl:             powerSourceCtrl,
+		PowerSourceCtrlBudget:       powerSourceCtrlBudget,
+		PowerSourceCtrlEnabled:      powerSourceCtrlEnabled,
+		ResetbtnEnabled:             resetbtnEnabled,
+		SnmpContact:                 snmpContact,
+		SnmpLocation:                snmpLocation,
+		StpPriority:                 stpPriority,
+		StpVersion:                  stpVersion,
+		LcmBrightness:               lcmBrightness,
+		LcmBrightnessOverride:       lcmBrightnessOverride,
+		LcmIDleTimeout:              lcmIdleTimeout,
+		LcmIDleTimeoutOverride:      lcmIdleTimeoutOverride,
+		LcmNightModeBegins:          lcmNightModeBegins,
+		LcmNightModeEnds:            lcmNightModeEnds,
+		LcmOrientationOverride:      lcmOrientationOverride,
+		LcmSettingsRestrictedAccess: lcmSettingsRestrictedAccess,
+		LcmTrackerEnabled:           lcmTrackerEnabled,
+		LcmTrackerSeed:              lcmTrackerSeed,
+		PortOverrides:               pos,
 	}, nil
 }
 
