@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/http"
 	"regexp"
 	"strings"
 
@@ -289,6 +290,21 @@ func ResourceNetwork() *schema.Resource {
 					"* Useful for centralized DHCP management",
 				Type:     schema.TypeBool,
 				Optional: true,
+			},
+			"dhcp_relay_servers": {
+				Description: "DHCP servers to relay to, in priority order. Requires " +
+					"`dhcp_relay_enabled = true`.\n\n" +
+					"go-unifi's Network struct has no field for this, so it is read and written " +
+					"out of band against the REST API directly. Safe because a networkconf PUT " +
+					"MERGES -- verified on hardware with a throwaway network: a body carrying only " +
+					"this key left all 16 other fields untouched.",
+				Type:     schema.TypeList,
+				Optional: true,
+				Computed: true,
+				Elem: &schema.Schema{
+					Type:         schema.TypeString,
+					ValidateFunc: validation.IsIPAddress,
+				},
 			},
 			"dhcp_v6_dns": {
 				Description: "List of IPv6 DNS server addresses for DHCPv6 clients. Examples:\n" +
@@ -1419,6 +1435,45 @@ func resourceNetworkSetResourceData(resp *unifi.Network, d *schema.ResourceData,
 	return nil
 }
 
+// relayServersPath is the REST path go-unifi uses for a single network.
+func relayServersPath(site, id string) string {
+	return fmt.Sprintf("s/%s/rest/networkconf/%s", site, id)
+}
+
+// readRelayServers fetches dhcp_relay_servers out of band. go-unifi's Network
+// struct has no field for it, so a normal read cannot see it and state would
+// diff forever.
+func readRelayServers(ctx context.Context, c *base.Client, site, id string) ([]interface{}, error) {
+	var body struct {
+		Data []struct {
+			DHCPRelayServers []string `json:"dhcp_relay_servers"`
+		} `json:"data"`
+	}
+	if err := c.Do(ctx, http.MethodGet, relayServersPath(site, id), nil, &body); err != nil {
+		return nil, err
+	}
+	if len(body.Data) != 1 {
+		return nil, nil
+	}
+	out := make([]interface{}, 0, len(body.Data[0].DHCPRelayServers))
+	for _, v := range body.Data[0].DHCPRelayServers {
+		out = append(out, v)
+	}
+	return out, nil
+}
+
+// writeRelayServers sends only dhcp_relay_servers. A networkconf PUT merges, so
+// every other field keeps whatever the preceding full write left.
+func writeRelayServers(ctx context.Context, c *base.Client, site, id string, servers []interface{}) error {
+	list := make([]string, 0, len(servers))
+	for _, v := range servers {
+		sv, _ := v.(string)
+		list = append(list, sv)
+	}
+	return c.Do(ctx, http.MethodPut, relayServersPath(site, id),
+		map[string]interface{}{"dhcp_relay_servers": list}, nil)
+}
+
 func resourceNetworkRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	c, ok := meta.(*base.Client)
 	if !ok {
@@ -1441,7 +1496,17 @@ func resourceNetworkRead(ctx context.Context, d *schema.ResourceData, meta inter
 		return diag.FromErr(err)
 	}
 
-	return resourceNetworkSetResourceData(resp, d, site)
+	if diags := resourceNetworkSetResourceData(resp, d, site); diags != nil {
+		return diags
+	}
+	servers, err := readRelayServers(ctx, c, site, id)
+	if err != nil {
+		return diag.FromErr(fmt.Errorf("unable to read dhcp_relay_servers: %w", err))
+	}
+	if err := d.Set("dhcp_relay_servers", servers); err != nil {
+		return diag.FromErr(err)
+	}
+	return nil
 }
 
 func resourceNetworkUpdate(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
@@ -1477,6 +1542,13 @@ func resourceNetworkUpdate(ctx context.Context, d *schema.ResourceData, meta int
 		// apply (mirrors resourceNetworkRead and resourceNetworkDelete).
 		d.SetId("")
 		return nil
+	}
+
+	if raw, ok := d.GetOk("dhcp_relay_servers"); ok {
+		servers, _ := raw.([]interface{})
+		if err := writeRelayServers(ctx, c, site, req.ID, servers); err != nil {
+			return diag.FromErr(fmt.Errorf("unable to write dhcp_relay_servers: %w", err))
+		}
 	}
 
 	return resourceNetworkSetResourceData(resp, d, site)
