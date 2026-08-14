@@ -87,6 +87,142 @@ func ResourceDevice() *schema.Resource {
 					return old == "true" && newValue == "false"
 				},
 			},
+			// Device-level settings. go-unifi carries all of these; they were
+			// simply not in the schema. Several are overridden by the SITE-WIDE
+			// settings on unifi_setting_global_switch unless the device is listed
+			// in its switch_exclusions -- flowctrl and jumboframe especially.
+			"dot1x_fallback_networkconf_id": {
+				Description: "Network a port falls back to when 802.1X authentication fails.",
+				Type:        schema.TypeString,
+				Optional:    true,
+			},
+			"dot1x_portctrl_enabled": {
+				Description: "Enable 802.1X port control on the device.",
+				Type:        schema.TypeBool,
+				Optional:    true,
+			},
+			"dpi_enabled": {
+				Description: "Enable deep packet inspection on the device.",
+				Type:        schema.TypeBool,
+				Optional:    true,
+			},
+			"flowctrl_enabled": {
+				Description: "Enable 802.3x flow control on the device. Overridden by the site-wide setting unless the device is listed in `switch_exclusions` on `unifi_setting_global_switch`.",
+				Type:        schema.TypeBool,
+				Optional:    true,
+			},
+			"jumboframe_enabled": {
+				Description: "Enable jumbo frames. Same site-wide override caveat as `flowctrl_enabled`.",
+				Type:        schema.TypeBool,
+				Optional:    true,
+			},
+			"led_override": {
+				Description:  "Status LED behaviour: follow the site setting, or force on/off.",
+				Type:         schema.TypeString,
+				Optional:     true,
+				ValidateFunc: validation.StringInSlice([]string{"default", "on", "off"}, false),
+			},
+			"led_override_color": {
+				Description: "Status LED colour as a hex string, when `led_override` is `on`.",
+				Type:        schema.TypeString,
+				Optional:    true,
+			},
+			"led_override_color_brightness": {
+				Description: "Status LED brightness percentage, when `led_override` is `on`.",
+				Type:        schema.TypeInt,
+				Optional:    true,
+			},
+			"mgmt_network_id": {
+				Description: "Network the device uses for management -- the controller calls this the Network Override. A device with this set TAGS its management traffic with that VLAN, which is how a device reaches a management VLAN over a trunk whose native VLAN is something else. Switches usually do not need it (their uplink native VLAN does the job); APs here all use it.",
+				Type:        schema.TypeString,
+				Optional:    true,
+			},
+			"outlet_enabled": {
+				Description: "Enable outlets (USP-PDU / RPS hardware).",
+				Type:        schema.TypeBool,
+				Optional:    true,
+			},
+			"outlet_power_cycle_enabled": {
+				Description: "Allow power cycling of outlets.",
+				Type:        schema.TypeBool,
+				Optional:    true,
+			},
+			"power_source_ctrl": {
+				Description:  "PoE power source type for the device.",
+				Type:         schema.TypeString,
+				Optional:     true,
+				ValidateFunc: validation.StringInSlice([]string{"auto", "8023af", "8023at", "8023bt-type3", "8023bt-type4", "pasv24", "poe-injector", "ac", "adapter", "dc", "rps"}, false),
+			},
+			"power_source_ctrl_budget": {
+				Description: "PoE budget in watts when power source control is enabled.",
+				Type:        schema.TypeInt,
+				Optional:    true,
+			},
+			"power_source_ctrl_enabled": {
+				Description: "Enable PoE power source control.",
+				Type:        schema.TypeBool,
+				Optional:    true,
+			},
+			"resetbtn_enabled": {
+				Description:  "Whether the physical reset button is active.",
+				Type:         schema.TypeString,
+				Optional:     true,
+				ValidateFunc: validation.StringInSlice([]string{"on", "off"}, false),
+			},
+			"snmp_contact": {
+				Description: "SNMP contact string.",
+				Type:        schema.TypeString,
+				Optional:    true,
+			},
+			"snmp_location": {
+				Description: "SNMP location string.",
+				Type:        schema.TypeString,
+				Optional:    true,
+			},
+			"stp_priority": {
+				Description:  "Spanning tree bridge priority. Lower wins the root election; 32768 is the default.",
+				Type:         schema.TypeString,
+				Optional:     true,
+				ValidateFunc: validation.StringInSlice([]string{"0", "4096", "8192", "12288", "16384", "20480", "24576", "28672", "32768", "36864", "40960", "45056", "49152", "53248", "57344", "61440"}, false),
+			},
+			"stp_version": {
+				Description:  "Spanning tree version.",
+				Type:         schema.TypeString,
+				Optional:     true,
+				ValidateFunc: validation.StringInSlice([]string{"stp", "rstp", "disabled"}, false),
+			},
+			// Static IP. go-unifi types this as a STRUCT with `omitempty`,
+			// which does nothing on a struct -- so an empty ConfigNetwork is
+			// marshalled as {} on every write and the controller DROPS the
+			// device's static addressing. Verified: five managed devices lost
+			// theirs while every unmanaged one kept it. Declaring the block is
+			// what prevents that, so record it for every managed device.
+			"config_network": {
+				Description: "Device management addressing. Declare it for every managed device: " +
+					"leaving it out sends an empty object and the controller drops the static config, " +
+					"after which the device DHCPs on its next boot.",
+				Type:     schema.TypeList,
+				MaxItems: 1,
+				Optional: true,
+				Computed: true,
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"type": {
+							Type:         schema.TypeString,
+							Description:  "`static` or `dhcp`.",
+							Optional:     true,
+							Computed:     true,
+							ValidateFunc: validation.StringInSlice([]string{"static", "dhcp"}, false),
+						},
+						"ip":         {Type: schema.TypeString, Description: "Management IP when static.", Optional: true, Computed: true},
+						"netmask":    {Type: schema.TypeString, Description: "Netmask.", Optional: true, Computed: true},
+						"gateway":    {Type: schema.TypeString, Description: "Default gateway.", Optional: true, Computed: true},
+						"dns1":       {Type: schema.TypeString, Description: "Primary DNS.", Optional: true, Computed: true},
+						"dns2":       {Type: schema.TypeString, Description: "Secondary DNS.", Optional: true, Computed: true},
+						"dns_suffix": {Type: schema.TypeString, Description: "DNS search suffix.", Optional: true, Computed: true},
+					},
+				},
+			},
 			"port_override": {
 				// TODO: this should really be a map or something when possible in the SDK
 				// see https://github.com/hashicorp/terraform-plugin-sdk/issues/62
@@ -803,9 +939,37 @@ func resourceDeviceSetResourceData(resp *unifi.Device, d *schema.ResourceData, s
 		"name":                resp.Name,
 		"disabled":            resp.Disabled,
 		"switch_vlan_enabled": resp.SwitchVLANEnabled,
-		"port_override":       portOverrides,
-		"radio":               radiosFromDevice(resp, d),
-		"ether_lighting":      etherLightingFromDevice(resp, d),
+		"config_network": []interface{}{map[string]interface{}{
+			"type":       resp.ConfigNetwork.Type,
+			"ip":         resp.ConfigNetwork.IP,
+			"netmask":    resp.ConfigNetwork.Netmask,
+			"gateway":    resp.ConfigNetwork.Gateway,
+			"dns1":       resp.ConfigNetwork.DNS1,
+			"dns2":       resp.ConfigNetwork.DNS2,
+			"dns_suffix": resp.ConfigNetwork.DNSsuffix,
+		}},
+		"dpi_enabled":                   resp.DPIEnabled,
+		"dot1x_fallback_networkconf_id": resp.Dot1XFallbackNetworkID,
+		"dot1x_portctrl_enabled":        resp.Dot1XPortctrlEnabled,
+		"flowctrl_enabled":              resp.FlowctrlEnabled,
+		"jumboframe_enabled":            resp.JumboframeEnabled,
+		"led_override":                  resp.LedOverride,
+		"led_override_color":            resp.LedOverrideColor,
+		"led_override_color_brightness": resp.LedOverrideColorBrightness,
+		"mgmt_network_id":               resp.MgmtNetworkID,
+		"outlet_enabled":                resp.OutletEnabled,
+		"outlet_power_cycle_enabled":    resp.OutletPowerCycleEnabled,
+		"power_source_ctrl":             resp.PowerSourceCtrl,
+		"power_source_ctrl_budget":      resp.PowerSourceCtrlBudget,
+		"power_source_ctrl_enabled":     resp.PowerSourceCtrlEnabled,
+		"resetbtn_enabled":              resp.ResetbtnEnabled,
+		"snmp_contact":                  resp.SnmpContact,
+		"snmp_location":                 resp.SnmpLocation,
+		"stp_priority":                  resp.StpPriority,
+		"stp_version":                   resp.StpVersion,
+		"port_override":                 portOverrides,
+		"radio":                         radiosFromDevice(resp, d),
+		"ether_lighting":                etherLightingFromDevice(resp, d),
 	}
 	for k, v := range values {
 		if err := d.Set(k, v); err != nil {
@@ -948,11 +1112,66 @@ func resourceDeviceGetResourceData(d *schema.ResourceData) (*unifi.Device, error
 	name, _ := d.Get("name").(string)
 	switchVLANEnabled, _ := d.Get("switch_vlan_enabled").(bool)
 
+	// Only overlay when declared. An empty struct is still sent (omitempty is
+	// a no-op on structs), so a device with no block declared loses its static
+	// addressing -- which is exactly what happened before this existed.
+	var configNetwork unifi.DeviceConfigNetwork
+	if raw, ok := d.Get("config_network").([]interface{}); ok && len(raw) > 0 {
+		if m, ok := raw[0].(map[string]interface{}); ok {
+			configNetwork.Type, _ = m["type"].(string)
+			configNetwork.IP, _ = m["ip"].(string)
+			configNetwork.Netmask, _ = m["netmask"].(string)
+			configNetwork.Gateway, _ = m["gateway"].(string)
+			configNetwork.DNS1, _ = m["dns1"].(string)
+			configNetwork.DNS2, _ = m["dns2"].(string)
+			configNetwork.DNSsuffix, _ = m["dns_suffix"].(string)
+		}
+	}
+	dpiEnabled, _ := d.Get("dpi_enabled").(bool)
+	dot1xFallbackNetworkconfId, _ := d.Get("dot1x_fallback_networkconf_id").(string)
+	dot1xPortctrlEnabled, _ := d.Get("dot1x_portctrl_enabled").(bool)
+	flowctrlEnabled, _ := d.Get("flowctrl_enabled").(bool)
+	jumboframeEnabled, _ := d.Get("jumboframe_enabled").(bool)
+	ledOverride, _ := d.Get("led_override").(string)
+	ledOverrideColor, _ := d.Get("led_override_color").(string)
+	ledOverrideColorBrightness, _ := d.Get("led_override_color_brightness").(int)
+	mgmtNetworkId, _ := d.Get("mgmt_network_id").(string)
+	outletEnabled, _ := d.Get("outlet_enabled").(bool)
+	outletPowerCycleEnabled, _ := d.Get("outlet_power_cycle_enabled").(bool)
+	powerSourceCtrl, _ := d.Get("power_source_ctrl").(string)
+	powerSourceCtrlBudget, _ := d.Get("power_source_ctrl_budget").(int)
+	powerSourceCtrlEnabled, _ := d.Get("power_source_ctrl_enabled").(bool)
+	resetbtnEnabled, _ := d.Get("resetbtn_enabled").(string)
+	snmpContact, _ := d.Get("snmp_contact").(string)
+	snmpLocation, _ := d.Get("snmp_location").(string)
+	stpPriority, _ := d.Get("stp_priority").(string)
+	stpVersion, _ := d.Get("stp_version").(string)
+
 	return &unifi.Device{
-		MAC:               mac,
-		Name:              name,
-		SwitchVLANEnabled: switchVLANEnabled,
-		PortOverrides:     pos,
+		MAC:                        mac,
+		Name:                       name,
+		SwitchVLANEnabled:          switchVLANEnabled,
+		ConfigNetwork:              configNetwork,
+		DPIEnabled:                 dpiEnabled,
+		Dot1XFallbackNetworkID:     dot1xFallbackNetworkconfId,
+		Dot1XPortctrlEnabled:       dot1xPortctrlEnabled,
+		FlowctrlEnabled:            flowctrlEnabled,
+		JumboframeEnabled:          jumboframeEnabled,
+		LedOverride:                ledOverride,
+		LedOverrideColor:           ledOverrideColor,
+		LedOverrideColorBrightness: ledOverrideColorBrightness,
+		MgmtNetworkID:              mgmtNetworkId,
+		OutletEnabled:              outletEnabled,
+		OutletPowerCycleEnabled:    outletPowerCycleEnabled,
+		PowerSourceCtrl:            powerSourceCtrl,
+		PowerSourceCtrlBudget:      powerSourceCtrlBudget,
+		PowerSourceCtrlEnabled:     powerSourceCtrlEnabled,
+		ResetbtnEnabled:            resetbtnEnabled,
+		SnmpContact:                snmpContact,
+		SnmpLocation:               snmpLocation,
+		StpPriority:                stpPriority,
+		StpVersion:                 stpVersion,
+		PortOverrides:              pos,
 	}, nil
 }
 
