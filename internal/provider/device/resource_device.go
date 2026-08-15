@@ -989,6 +989,12 @@ func resourceDeviceUpdate(ctx context.Context, d *schema.ResourceData, meta inte
 		if eth, _ := d.Get("ethernet_override").(*schema.Set); eth.Len() > 0 {
 			req.EthernetOverrides = ethernetOverrides(eth)
 		}
+		// Declaring config_network is no longer the only thing standing between
+		// a device and losing its addressing: an undeclared block now carries
+		// the controller's current value forward instead of sending {}.
+		if raw, _ := d.Get("config_network").([]interface{}); len(raw) == 0 {
+			req.ConfigNetwork = current.ConfigNetwork
+		}
 	}
 
 	// go-unifi v1.9.2's updateDevice converts a successful-but-empty PUT response into
