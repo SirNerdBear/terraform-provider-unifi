@@ -117,10 +117,19 @@ func ResourceNetwork() *schema.Resource {
 					"* `wan` - External network connection (WAN uplink)\n" +
 					"* `vlan-only` - VLAN network without DHCP services\n" +
 					"* `vpn-client` - Site-to-site VPN client connection (see the `vpn_type` and " +
-					"`wireguard_client_*` arguments to configure a WireGuard VPN client)",
+					"`wireguard_client_*` arguments to configure a WireGuard VPN client)\n\n" +
+					"On UniFi OS 9.x+ this is **derived from firewall zone membership** for LAN " +
+					"networks: putting a network in the Hotspot zone makes it `guest`, and moving it " +
+					"out makes it `corporate`. Writing the field is a silent no-op — the controller " +
+					"returns rc: ok and ignores the value. It is therefore `Optional` + `Computed` " +
+					"and is only sent when explicitly configured, which matters for `wan`, " +
+					"`vlan-only` and `vpn-client` at create time. It is deliberately NOT `ForceNew`: " +
+					"a config that disagreed with the derived value used to plan a destroy and " +
+					"recreate of a live network, and the recreate landed in the default zone and " +
+					"disagreed again, so it never converged.",
 				Type:         schema.TypeString,
-				Required:     true,
-				ForceNew:     true,
+				Optional:     true,
+				Computed:     true,
 				ValidateFunc: validation.StringInSlice([]string{"corporate", "guest", "wan", "vlan-only", "vpn-client"}, false),
 			},
 			"vlan_id": {
@@ -968,7 +977,12 @@ func resourceNetworkGetResourceData(d *schema.ResourceData) (*unifi.Network, err
 	}
 
 	n.Name, _ = d.Get("name").(string)
-	n.Purpose, _ = d.Get("purpose").(string)
+	// Derived from firewall zone membership on 9.x+, so only send it when the
+	// practitioner actually wrote one -- same reasoning as firewall_zone_id below.
+	// Purpose has omitempty, so leaving it "" drops it from the payload.
+	if raw := d.GetRawConfig(); utils.IsRawConfigSet(raw, "purpose") {
+		n.Purpose, _ = d.Get("purpose").(string)
+	}
 	n.NetworkGroup, _ = d.Get("network_group").(string)
 	n.DHCPDStart, _ = d.Get("dhcp_start").(string)
 	n.DHCPDStop, _ = d.Get("dhcp_stop").(string)
