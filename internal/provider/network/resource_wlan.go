@@ -8,6 +8,7 @@ import (
 	"github.com/SirNerdBear/terraform-provider-unifi/internal/provider/utils"
 
 	"github.com/filipowm/go-unifi/unifi"
+	"github.com/hashicorp/go-cty/cty"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
@@ -91,6 +92,20 @@ func ResourceWLAN() *schema.Resource {
 				ValidateFunc: validation.StringInSlice([]string{"required", "optional", "disabled"}, false),
 				Default:      "disabled",
 			},
+			"passphrase_wo": {
+				Description: "The WPA pre-shared key, as a **write-only** attribute. Terraform never stores " +
+					"it in plan or state, so it can be fed from an `ephemeral` block -- a Vault/OpenBao KV " +
+					"secret, for instance -- without the key landing in the state file. Requires Terraform " +
+					"1.11 or later.\n\n" +
+					"Prefer this over `passphrase` for anything sourced from a secret store. Because " +
+					"Terraform cannot see a write-only value, it cannot detect that the key changed: it is " +
+					"sent on create, and on any update the resource is already making for another reason.",
+				Type:          schema.TypeString,
+				Optional:      true,
+				WriteOnly:     true,
+				Sensitive:     true,
+				ConflictsWith: []string{"passphrase"},
+			},
 			"passphrase": {
 				Description: "The WPA pre-shared key (password) for the network. Required when security is not set to `open`.\n\n" +
 					"`Computed`, so leaving it unset keeps the key the controller already holds rather than clearing it. " +
@@ -99,9 +114,10 @@ func ResourceWLAN() *schema.Resource {
 					"the PSK being written into configuration.",
 				Type: schema.TypeString,
 				// only required if security != open
-				Optional:  true,
-				Computed:  true,
-				Sensitive: true,
+				Optional:      true,
+				Computed:      true,
+				Sensitive:     true,
+				ConflictsWith: []string{"passphrase_wo"},
 			},
 			"hide_ssid": {
 				Description: "When enabled, the access points will not broadcast the network name (SSID). Clients will need to manually enter the SSID to connect.",
@@ -531,6 +547,15 @@ func resourceWLANGetResourceData(d *schema.ResourceData, meta interface{}) (*uni
 
 	security, _ := d.Get("security").(string)
 	passphrase, _ := d.Get("passphrase").(string)
+
+	// A write-only attribute is deliberately absent from state and from d.Get;
+	// the only place it exists is the raw config for this operation.
+	if raw := d.GetRawConfig(); !raw.IsNull() {
+		if wo, diags := d.GetRawConfigAt(cty.GetAttrPath("passphrase_wo")); !diags.HasError() &&
+			!wo.IsNull() && wo.IsKnown() && wo.Type() == cty.String {
+			passphrase = wo.AsString()
+		}
+	}
 	switch security {
 	case "open":
 		passphrase = ""
