@@ -278,6 +278,213 @@ func ResourceWLAN() *schema.Resource {
 					Type: schema.TypeString,
 				},
 			},
+
+			// ---- fields go-unifi serialises on EVERY write ----
+			// No omitempty, so the Go zero value goes on the wire whether or not it
+			// is configured. Before these existed the provider overwrote all of them
+			// with false on every apply. Optional+Computed so an unset attribute
+			// round-trips the controller's value instead of clobbering it.
+			"auth_cache": {
+				Description: "Cache 802.1x authentication results to speed up roaming.",
+				Type:        schema.TypeBool,
+				Optional:    true,
+				Computed:    true,
+			},
+			"b_supported": {
+				Description: "Allow legacy 802.11b rates.",
+				Type:        schema.TypeBool,
+				Optional:    true,
+				Computed:    true,
+			},
+			"bc_filter_enabled": {
+				Description: "Filter broadcast traffic, keeping it off the air unless listed in `bc_filter_list`.",
+				Type:        schema.TypeBool,
+				Optional:    true,
+				Computed:    true,
+			},
+			"country_beacon": {
+				Description: "Advertise the regulatory country in beacons (802.11d).",
+				Type:        schema.TypeBool,
+				Optional:    true,
+				Computed:    true,
+			},
+			"dpi_enabled": {
+				Description: "Apply deep packet inspection to clients on this SSID.",
+				Type:        schema.TypeBool,
+				Optional:    true,
+				Computed:    true,
+			},
+			"element_adopt": {
+				Description: "UniFi Elements adoption.",
+				Type:        schema.TypeBool,
+				Optional:    true,
+				Computed:    true,
+			},
+			"enabled": {
+				Description: "Whether the SSID is broadcast at all. A disabled WLAN keeps its configuration.",
+				Type:        schema.TypeBool,
+				Optional:    true,
+				Computed:    true,
+			},
+			"enhanced_iot": {
+				Description: "Enhanced IoT connectivity, which relaxes rates and steering for constrained devices.",
+				Type:        schema.TypeBool,
+				Optional:    true,
+				Computed:    true,
+			},
+			"hotspot2conf_enabled": {
+				Description: "Enable the Hotspot 2.0 / Passpoint profile.",
+				Type:        schema.TypeBool,
+				Optional:    true,
+				Computed:    true,
+			},
+			"iapp_enabled": {
+				Description: "Inter-Access-Point Protocol, which helps clients hand off between APs.",
+				Type:        schema.TypeBool,
+				Optional:    true,
+				Computed:    true,
+			},
+			"minrate_na_advertising_rates": {
+				Description: "Advertise the 5GHz minimum rate in beacons rather than only enforcing it.",
+				Type:        schema.TypeBool,
+				Optional:    true,
+				Computed:    true,
+			},
+			"minrate_ng_advertising_rates": {
+				Description: "Advertise the 2.4GHz minimum rate in beacons rather than only enforcing it.",
+				Type:        schema.TypeBool,
+				Optional:    true,
+				Computed:    true,
+			},
+			"mlo_enabled": {
+				Description: "Multi-Link Operation (Wi-Fi 7).",
+				Type:        schema.TypeBool,
+				Optional:    true,
+				Computed:    true,
+			},
+			"name_combine_enabled": {
+				Description: "Broadcast one SSID name across bands. When false the controller appends `name_combine_suffix` to the 5GHz name.",
+				Type:        schema.TypeBool,
+				Optional:    true,
+				Computed:    true,
+			},
+			"optimize_iot_wifi_connectivity": {
+				Description: "Optimisations for IoT devices that struggle to associate.",
+				Type:        schema.TypeBool,
+				Optional:    true,
+				Computed:    true,
+			},
+			"p2p": {
+				Description: "Wi-Fi Direct / peer-to-peer.",
+				Type:        schema.TypeBool,
+				Optional:    true,
+				Computed:    true,
+			},
+			"p2p_cross_connect": {
+				Description: "Allow peer-to-peer clients to reach the wired network.",
+				Type:        schema.TypeBool,
+				Optional:    true,
+				Computed:    true,
+			},
+			"private_preshared_keys_enabled": {
+				Description: "Per-client PSKs (see `private_preshared_keys`).",
+				Type:        schema.TypeBool,
+				Optional:    true,
+				Computed:    true,
+			},
+			"radius_das_enabled": {
+				Description: "RADIUS Dynamic Authorization Extensions (CoA/Disconnect).",
+				Type:        schema.TypeBool,
+				Optional:    true,
+				Computed:    true,
+			},
+			"radius_mac_auth_enabled": {
+				Description: "Authenticate clients by MAC against RADIUS.",
+				Type:        schema.TypeBool,
+				Optional:    true,
+				Computed:    true,
+			},
+			"radius_macacl_empty_password": {
+				Description: "Send an empty password for RADIUS MAC authentication.",
+				Type:        schema.TypeBool,
+				Optional:    true,
+				Computed:    true,
+			},
+			"rrm_enabled": {
+				Description: "802.11k Radio Resource Management, which helps clients pick a better AP.",
+				Type:        schema.TypeBool,
+				Optional:    true,
+				Computed:    true,
+			},
+			"sae_psk_vlan_required": {
+				Description: "Require a VLAN on every SAE PSK entry.",
+				Type:        schema.TypeBool,
+				Optional:    true,
+				Computed:    true,
+			},
+			"schedule_reversed": {
+				Description: "Invert the schedule, so the listed blocks are when the SSID is OFF.",
+				Type:        schema.TypeBool,
+				Optional:    true,
+				Computed:    true,
+			},
+			"tdls_prohibit": {
+				Description: "Prohibit direct client-to-client tunnelled links.",
+				Type:        schema.TypeBool,
+				Optional:    true,
+				Computed:    true,
+			},
+			"vlan_enabled": {
+				Description: "Whether the legacy `vlan` field applies. Modern configs use `network_id` instead.",
+				Type:        schema.TypeBool,
+				Optional:    true,
+				Computed:    true,
+			},
+			"wpa3_enhanced_192": {
+				Description: "WPA3 Enterprise 192-bit mode.",
+				Type:        schema.TypeBool,
+				Optional:    true,
+				Computed:    true,
+			},
+			"wpa3_fast_roaming": {
+				Description: "802.11r fast roaming for WPA3.",
+				Type:        schema.TypeBool,
+				Optional:    true,
+				Computed:    true,
+			},
+			"wlangroup_id": {
+				Description: "ID of the WLAN group this SSID belongs to.",
+				Type:        schema.TypeString,
+				Optional:    true,
+				Computed:    true,
+			},
+			"wpa_enc": {
+				Description:  "WPA encryption cipher.",
+				Type:         schema.TypeString,
+				Optional:     true,
+				Computed:     true,
+				ValidateFunc: validation.StringInSlice([]string{"auto", "ccmp", "gcmp", "ccmp-256", "gcmp-256"}, false),
+			},
+			"wpa_mode": {
+				Description:  "WPA protocol version.",
+				Type:         schema.TypeString,
+				Optional:     true,
+				Computed:     true,
+				ValidateFunc: validation.StringInSlice([]string{"auto", "wpa1", "wpa2"}, false),
+			},
+			"dtim_mode": {
+				Description:  "DTIM interval mode. `custom` enables the per-band `dtim_*` values.",
+				Type:         schema.TypeString,
+				Optional:     true,
+				Computed:     true,
+				ValidateFunc: validation.StringInSlice([]string{"default", "custom"}, false),
+			},
+			"group_rekey": {
+				Description: "Group key rotation interval in seconds. 0 disables rotation.",
+				Type:        schema.TypeInt,
+				Optional:    true,
+				Computed:    true,
+			},
 		},
 	}
 }
@@ -424,14 +631,43 @@ func resourceWLANGetResourceData(d *schema.ResourceData, meta interface{}) (*uni
 		SettingPreference:       settingPreference,
 		PMFMode:                 pmf,
 
-		// TODO: add to schema
-		WPAEnc:             "ccmp",
-		WPAMode:            "wpa2",
-		Enabled:            true,
-		NameCombineEnabled: true,
+		// Previously hardcoded here, which rewrote whatever the controller held:
+		// group_rekey 0 -> 3600 and iapp_enabled true -> false on every live SSID.
+		WPAEnc:      wlanStrDef(d, "wpa_enc", "ccmp"),
+		WPAMode:     wlanStrDef(d, "wpa_mode", "wpa2"),
+		DTIMMode:    wlanStrDef(d, "dtim_mode", "default"),
+		WLANGroupID: wlanStr(d, "wlangroup_id"),
+		GroupRekey:  wlanIntDef(d, "group_rekey", 3600),
 
-		GroupRekey:         3600,
-		DTIMMode:           "default",
+		AuthCache:                   wlanBool(d, "auth_cache"),
+		BSupported:                  wlanBool(d, "b_supported"),
+		BroadcastFilterEnabled:      wlanBool(d, "bc_filter_enabled"),
+		CountryBeacon:               wlanBool(d, "country_beacon"),
+		DPIEnabled:                  wlanBool(d, "dpi_enabled"),
+		ElementAdopt:                wlanBool(d, "element_adopt"),
+		Enabled:                     wlanBoolDef(d, "enabled", true),
+		EnhancedIot:                 wlanBool(d, "enhanced_iot"),
+		Hotspot2ConfEnabled:         wlanBool(d, "hotspot2conf_enabled"),
+		IappEnabled:                 wlanBool(d, "iapp_enabled"),
+		MinrateNaAdvertisingRates:   wlanBool(d, "minrate_na_advertising_rates"),
+		MinrateNgAdvertisingRates:   wlanBool(d, "minrate_ng_advertising_rates"),
+		MloEnabled:                  wlanBool(d, "mlo_enabled"),
+		NameCombineEnabled:          wlanBoolDef(d, "name_combine_enabled", true),
+		OptimizeIotWifiConnectivity: wlanBool(d, "optimize_iot_wifi_connectivity"),
+		P2P:                         wlanBool(d, "p2p"),
+		P2PCrossConnect:             wlanBool(d, "p2p_cross_connect"),
+		PrivatePresharedKeysEnabled: wlanBool(d, "private_preshared_keys_enabled"),
+		RADIUSDasEnabled:            wlanBool(d, "radius_das_enabled"),
+		RADIUSMACAuthEnabled:        wlanBool(d, "radius_mac_auth_enabled"),
+		RADIUSMACaclEmptyPassword:   wlanBool(d, "radius_macacl_empty_password"),
+		RrmEnabled:                  wlanBool(d, "rrm_enabled"),
+		SaePskVLANRequired:          wlanBool(d, "sae_psk_vlan_required"),
+		ScheduleReversed:            wlanBool(d, "schedule_reversed"),
+		TdlsProhibit:                wlanBool(d, "tdls_prohibit"),
+		VLANEnabled:                 wlanBool(d, "vlan_enabled"),
+		WPA3Enhanced192:             wlanBool(d, "wpa3_enhanced_192"),
+		WPA3FastRoaming:             wlanBool(d, "wpa3_fast_roaming"),
+
 		No2GhzOui:          no2ghzOui,
 		L2Isolation:        l2Isolation,
 		ProxyArp:           proxyArp,
@@ -510,34 +746,67 @@ func resourceWLANSetResourceData(resp *unifi.WLAN, d *schema.ResourceData, site 
 	}
 
 	for key, value := range map[string]interface{}{
-		"site":                      site,
-		"name":                      resp.Name,
-		"user_group_id":             resp.UserGroupID,
-		"passphrase":                passphrase,
-		"hide_ssid":                 resp.HideSSID,
-		"is_guest":                  resp.IsGuest,
-		"security":                  security,
-		"wpa3_support":              wpa3,
-		"wpa3_transition":           wpa3Transition,
-		"multicast_enhance":         resp.MulticastEnhanceEnabled,
-		"mac_filter_enabled":        macFilterEnabled,
-		"mac_filter_list":           macFilterList,
-		"mac_filter_policy":         macFilterPolicy,
-		"radius_profile_id":         resp.RADIUSProfileID,
-		"schedule":                  schedule,
-		"wlan_band":                 resp.WLANBand,
-		"wlan_bands":                utils.StringSliceToSet(resp.WLANBands),
-		"no2ghz_oui":                resp.No2GhzOui,
-		"l2_isolation":              resp.L2Isolation,
-		"proxy_arp":                 resp.ProxyArp,
-		"bss_transition":            resp.BssTransition,
-		"uapsd":                     resp.UapsdEnabled,
-		"fast_roaming_enabled":      resp.FastRoamingEnabled,
-		"ap_group_ids":              apGroupIDs,
-		"network_id":                resp.NetworkID,
-		"pmf_mode":                  resp.PMFMode,
-		"minimum_data_rate_2g_kbps": minRate2g,
-		"minimum_data_rate_5g_kbps": minRate5g,
+		"site":                           site,
+		"name":                           resp.Name,
+		"user_group_id":                  resp.UserGroupID,
+		"passphrase":                     passphrase,
+		"hide_ssid":                      resp.HideSSID,
+		"is_guest":                       resp.IsGuest,
+		"security":                       security,
+		"wpa3_support":                   wpa3,
+		"wpa3_transition":                wpa3Transition,
+		"multicast_enhance":              resp.MulticastEnhanceEnabled,
+		"mac_filter_enabled":             macFilterEnabled,
+		"mac_filter_list":                macFilterList,
+		"mac_filter_policy":              macFilterPolicy,
+		"radius_profile_id":              resp.RADIUSProfileID,
+		"schedule":                       schedule,
+		"wlan_band":                      resp.WLANBand,
+		"wlan_bands":                     utils.StringSliceToSet(resp.WLANBands),
+		"no2ghz_oui":                     resp.No2GhzOui,
+		"l2_isolation":                   resp.L2Isolation,
+		"proxy_arp":                      resp.ProxyArp,
+		"bss_transition":                 resp.BssTransition,
+		"uapsd":                          resp.UapsdEnabled,
+		"fast_roaming_enabled":           resp.FastRoamingEnabled,
+		"ap_group_ids":                   apGroupIDs,
+		"network_id":                     resp.NetworkID,
+		"pmf_mode":                       resp.PMFMode,
+		"minimum_data_rate_2g_kbps":      minRate2g,
+		"minimum_data_rate_5g_kbps":      minRate5g,
+		"wpa_enc":                        resp.WPAEnc,
+		"wpa_mode":                       resp.WPAMode,
+		"dtim_mode":                      resp.DTIMMode,
+		"wlangroup_id":                   resp.WLANGroupID,
+		"group_rekey":                    resp.GroupRekey,
+		"auth_cache":                     resp.AuthCache,
+		"b_supported":                    resp.BSupported,
+		"bc_filter_enabled":              resp.BroadcastFilterEnabled,
+		"country_beacon":                 resp.CountryBeacon,
+		"dpi_enabled":                    resp.DPIEnabled,
+		"element_adopt":                  resp.ElementAdopt,
+		"enabled":                        resp.Enabled,
+		"enhanced_iot":                   resp.EnhancedIot,
+		"hotspot2conf_enabled":           resp.Hotspot2ConfEnabled,
+		"iapp_enabled":                   resp.IappEnabled,
+		"minrate_na_advertising_rates":   resp.MinrateNaAdvertisingRates,
+		"minrate_ng_advertising_rates":   resp.MinrateNgAdvertisingRates,
+		"mlo_enabled":                    resp.MloEnabled,
+		"name_combine_enabled":           resp.NameCombineEnabled,
+		"optimize_iot_wifi_connectivity": resp.OptimizeIotWifiConnectivity,
+		"p2p":                            resp.P2P,
+		"p2p_cross_connect":              resp.P2PCrossConnect,
+		"private_preshared_keys_enabled": resp.PrivatePresharedKeysEnabled,
+		"radius_das_enabled":             resp.RADIUSDasEnabled,
+		"radius_mac_auth_enabled":        resp.RADIUSMACAuthEnabled,
+		"radius_macacl_empty_password":   resp.RADIUSMACaclEmptyPassword,
+		"rrm_enabled":                    resp.RrmEnabled,
+		"sae_psk_vlan_required":          resp.SaePskVLANRequired,
+		"schedule_reversed":              resp.ScheduleReversed,
+		"tdls_prohibit":                  resp.TdlsProhibit,
+		"vlan_enabled":                   resp.VLANEnabled,
+		"wpa3_enhanced_192":              resp.WPA3Enhanced192,
+		"wpa3_fast_roaming":              resp.WPA3FastRoaming,
 	} {
 		if err := d.Set(key, value); err != nil {
 			return diag.FromErr(err)
@@ -676,4 +945,55 @@ func listFromSchedules(ss []unifi.WLANScheduleWithDuration) []interface{} {
 		}
 	}
 	return list
+}
+
+// Optional+Computed accessors. d.Get returns the value read back from the
+// controller when config leaves the attribute unset, so these round-trip
+// instead of writing a Go zero over a live setting.
+func wlanBool(d *schema.ResourceData, key string) bool {
+	v, _ := d.Get(key).(bool)
+	return v
+}
+
+func wlanStr(d *schema.ResourceData, key string) string {
+	v, _ := d.Get(key).(string)
+	return v
+}
+
+func wlanInt(d *schema.ResourceData, key string) int {
+	v, _ := d.Get(key).(int)
+	return v
+}
+
+// isNewAndUnset is true only when creating a resource whose config leaves this
+// attribute out. On update d.Get already holds the value read back from the
+// controller and that must win -- otherwise a default overwrites a live
+// setting, which is the bug these attributes exist to fix.
+func isNewAndUnset(d *schema.ResourceData, key string) bool {
+	if d.Id() != "" {
+		return false
+	}
+	raw := d.GetRawConfig()
+	return raw.IsNull() || !utils.IsRawConfigSet(raw, key)
+}
+
+func wlanBoolDef(d *schema.ResourceData, key string, def bool) bool {
+	if isNewAndUnset(d, key) {
+		return def
+	}
+	return wlanBool(d, key)
+}
+
+func wlanStrDef(d *schema.ResourceData, key, def string) string {
+	if isNewAndUnset(d, key) {
+		return def
+	}
+	return wlanStr(d, key)
+}
+
+func wlanIntDef(d *schema.ResourceData, key string, def int) int {
+	if isNewAndUnset(d, key) {
+		return def
+	}
+	return wlanInt(d, key)
 }
