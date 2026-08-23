@@ -53,11 +53,8 @@ var wlanAlias = map[string]string{
 
 // Written by the provider from another attribute rather than declared directly.
 var wlanDerived = map[string]bool{
-	"schedule_enabled":           true, // len(schedule) > 0
-	"minrate_ng_enabled":         true, // minimum_data_rate_2g_kbps != 0
-	"minrate_na_enabled":         true, // minimum_data_rate_5g_kbps != 0
-	"minrate_setting_preference": true, // auto unless a rate is set
-	"setting_preference":         true, // manual when wlan_bands is configured
+	"schedule_enabled":   true, // len(schedule) > 0
+	"setting_preference": true, // manual when wlan_bands is configured
 }
 
 // Identity and controller bookkeeping, never configuration.
@@ -119,3 +116,38 @@ func TestWLANSchema_ReportsUnexpressibleOptionalFields(t *testing.T) {
 }
 
 var _ = schema.Resource{}
+
+// Regression: every SSID at nerdhq holds minrate_setting_preference "auto"
+// together with minrate_ng_enabled true and a real rate. The old read path
+// zeroed the rate whenever preference was "auto", and the write path then
+// derived minrate_ng_enabled false from that zero and sent it -- the field
+// carries no omitempty, so it went on the wire every time. terraform plan could
+// not show it, because the value was derived rather than declared.
+func TestWLANMinrate_RoundTripsWhenPreferenceIsAuto(t *testing.T) {
+	live := &unifi.WLAN{
+		Name: "IotaWatt", Security: "wpapsk",
+		MinrateSettingPreference: "auto",
+		MinrateNgEnabled:         true,
+		MinrateNgDataRateKbps:    1000,
+		MinrateNaEnabled:         false,
+		MinrateNaDataRateKbps:    6000,
+	}
+	d := ResourceWLAN().TestResourceData()
+	require.Nil(t, resourceWLANSetResourceData(live, d, "default"))
+
+	assert.Equal(t, 1000, d.Get("minimum_data_rate_2g_kbps"), "2.4GHz rate must survive the read")
+	assert.Equal(t, 6000, d.Get("minimum_data_rate_5g_kbps"), "5GHz rate must survive the read")
+	assert.Equal(t, true, d.Get("minrate_ng_enabled"), "enabled flag is independent of preference")
+	assert.Equal(t, false, d.Get("minrate_na_enabled"))
+	assert.Equal(t, "auto", d.Get("minrate_setting_preference"))
+}
+
+// Adopting an SSID must not copy its PSK into the state file.
+func TestWLANPassphrase_NotStoredWhenUnconfigured(t *testing.T) {
+	d := ResourceWLAN().TestResourceData()
+	require.Nil(t, resourceWLANSetResourceData(
+		&unifi.WLAN{Name: "IotaWatt", Security: "wpapsk", XPassphrase: "hunter2hunter2"},
+		d, "default"))
+	assert.Empty(t, d.Get("passphrase"),
+		"an unconfigured passphrase must not be persisted to state")
+}

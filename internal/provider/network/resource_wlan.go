@@ -233,6 +233,7 @@ func ResourceWLAN() *schema.Resource {
 					utils.MarkdownValueListInt(wlanValidMinimumDataRate2g),
 				Type:         schema.TypeInt,
 				Optional:     true,
+				Computed:     true,
 				ValidateFunc: validation.IntInSlice(append([]int{0}, wlanValidMinimumDataRate2g...)),
 			},
 			"minimum_data_rate_5g_kbps": {
@@ -240,6 +241,7 @@ func ResourceWLAN() *schema.Resource {
 					utils.MarkdownValueListInt(wlanValidMinimumDataRate5g),
 				Type:         schema.TypeInt,
 				Optional:     true,
+				Computed:     true,
 				ValidateFunc: validation.IntInSlice(append([]int{0}, wlanValidMinimumDataRate5g...)),
 			},
 			"wlan_band": {
@@ -269,6 +271,33 @@ func ResourceWLAN() *schema.Resource {
 					Type:         schema.TypeString,
 					ValidateFunc: validation.StringInSlice([]string{"2g", "5g", "6g"}, false),
 				},
+			},
+			// The controller stores these three independently of the rate values.
+			// Deriving them from the rates alone cannot express what a real site
+			// holds -- every SSID here has minrate_setting_preference "auto" with
+			// minrate_ng_enabled true, and the old read path zeroed the rate on
+			// sight of "auto", so a write then sent enabled=false over it.
+			"minrate_setting_preference": {
+				Description: "Whether minimum data rates are chosen automatically or set by hand. " +
+					"Derived from `minimum_data_rate_2g_kbps`/`minimum_data_rate_5g_kbps` when either is " +
+					"configured; otherwise it round-trips what the controller holds.",
+				Type:         schema.TypeString,
+				Optional:     true,
+				Computed:     true,
+				ValidateFunc: validation.StringInSlice([]string{"auto", "manual"}, false),
+			},
+			"minrate_ng_enabled": {
+				Description: "Whether the 2.4GHz minimum rate is enforced. Independent of " +
+					"`minrate_setting_preference` on the controller.",
+				Type:     schema.TypeBool,
+				Optional: true,
+				Computed: true,
+			},
+			"minrate_na_enabled": {
+				Description: "Whether the 5GHz minimum rate is enforced.",
+				Type:        schema.TypeBool,
+				Optional:    true,
+				Computed:    true,
 			},
 			"network_id": {
 				Description: "ID of the network (VLAN) for this SSID. Used to assign the WLAN to a specific network segment.",
@@ -587,16 +616,37 @@ func resourceWLANGetResourceData(d *schema.ResourceData, meta interface{}) (*uni
 		return nil, fmt.Errorf("unable to process schedule block: %w", err)
 	}
 
-	minRate2g, _ := d.Get("minimum_data_rate_2g_kbps").(int)
-	minRate5g, _ := d.Get("minimum_data_rate_5g_kbps").(int)
+	// Two modes. If the practitioner writes either rate, the rates drive
+	// everything and the old "both or neither" rule applies. If neither is
+	// configured, all five values round-trip from the controller -- which is the
+	// only way to express minrate_setting_preference "auto" alongside
+	// minrate_ng_enabled true, the shape every SSID at nerdhq is actually in.
+	minRate2g := wlanInt(d, "minimum_data_rate_2g_kbps")
+	minRate5g := wlanInt(d, "minimum_data_rate_5g_kbps")
 
-	minrateSettingPreference := "auto"
-	if minRate2g != 0 || minRate5g != 0 {
-		if minRate2g == 0 || minRate5g == 0 {
-			// this is really only true I think in >= 7.2, but easier to just apply this in general
-			return nil, errors.New("you must set minimum data rates on both 2g and 5g if setting either")
+	raw := d.GetRawConfig()
+	ratesConfigured := !raw.IsNull() &&
+		(utils.IsRawConfigSet(raw, "minimum_data_rate_2g_kbps") ||
+			utils.IsRawConfigSet(raw, "minimum_data_rate_5g_kbps"))
+
+	var minrateSettingPreference string
+	var minrateNgEnabled, minrateNaEnabled bool
+
+	if ratesConfigured {
+		minrateSettingPreference = "auto"
+		if minRate2g != 0 || minRate5g != 0 {
+			if minRate2g == 0 || minRate5g == 0 {
+				// this is really only true I think in >= 7.2, but easier to just apply this in general
+				return nil, errors.New("you must set minimum data rates on both 2g and 5g if setting either")
+			}
+			minrateSettingPreference = "manual"
 		}
-		minrateSettingPreference = "manual"
+		minrateNgEnabled = minRate2g != 0
+		minrateNaEnabled = minRate5g != 0
+	} else {
+		minrateSettingPreference = wlanStrDef(d, "minrate_setting_preference", "auto")
+		minrateNgEnabled = wlanBool(d, "minrate_ng_enabled")
+		minrateNaEnabled = wlanBool(d, "minrate_na_enabled")
 	}
 
 	name, _ := d.Get("name").(string)
@@ -682,10 +732,10 @@ func resourceWLANGetResourceData(d *schema.ResourceData, meta interface{}) (*uni
 
 		MinrateSettingPreference: minrateSettingPreference,
 
-		MinrateNgEnabled:      minRate2g != 0,
+		MinrateNgEnabled:      minrateNgEnabled,
 		MinrateNgDataRateKbps: minRate2g,
 
-		MinrateNaEnabled:      minRate5g != 0,
+		MinrateNaEnabled:      minrateNaEnabled,
 		MinrateNaDataRateKbps: minRate5g,
 	}, nil
 }
@@ -729,6 +779,15 @@ func resourceWLANSetResourceData(resp *unifi.WLAN, d *schema.ResourceData, site 
 		wpa3Transition = resp.WPA3Transition
 	}
 
+	// Never persist a PSK the practitioner did not write. passphrase is
+	// Optional+Computed and x_passphrase carries omitempty, so an unconfigured
+	// one is never sent to the controller -- storing it would drop a live
+	// wireless key into the state file in plain text for no purpose. A
+	// configured one must be stored, or it cannot be diffed.
+	if raw := d.GetRawConfig(); raw.IsNull() || !utils.IsRawConfigSet(raw, "passphrase") {
+		passphrase = ""
+	}
+
 	macFilterEnabled := resp.MACFilterEnabled
 	var macFilterList *schema.Set
 	macFilterPolicy := "deny"
@@ -741,14 +800,10 @@ func resourceWLANSetResourceData(resp *unifi.WLAN, d *schema.ResourceData, site 
 
 	schedule := listFromSchedules(resp.ScheduleWithDuration)
 
-	minRate2g := 0
-	if resp.MinrateSettingPreference != "auto" && resp.MinrateNgEnabled {
-		minRate2g = resp.MinrateNgDataRateKbps
-	}
-	minRate5g := 0
-	if resp.MinrateSettingPreference != "auto" && resp.MinrateNaEnabled {
-		minRate5g = resp.MinrateNaDataRateKbps
-	}
+	// Read what the controller actually holds. Gating on preference discarded a
+	// live rate and the next write sent the derived zero back over it.
+	minRate2g := resp.MinrateNgDataRateKbps
+	minRate5g := resp.MinrateNaDataRateKbps
 
 	for key, value := range map[string]interface{}{
 		"site":                           site,
@@ -779,6 +834,9 @@ func resourceWLANSetResourceData(resp *unifi.WLAN, d *schema.ResourceData, site 
 		"pmf_mode":                       resp.PMFMode,
 		"minimum_data_rate_2g_kbps":      minRate2g,
 		"minimum_data_rate_5g_kbps":      minRate5g,
+		"minrate_setting_preference":     resp.MinrateSettingPreference,
+		"minrate_ng_enabled":             resp.MinrateNgEnabled,
+		"minrate_na_enabled":             resp.MinrateNaEnabled,
 		"wpa_enc":                        resp.WPAEnc,
 		"wpa_mode":                       resp.WPAMode,
 		"dtim_mode":                      resp.DTIMMode,
