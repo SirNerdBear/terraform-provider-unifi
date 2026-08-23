@@ -92,10 +92,15 @@ func ResourceWLAN() *schema.Resource {
 				Default:      "disabled",
 			},
 			"passphrase": {
-				Description: "The WPA pre-shared key (password) for the network. Required when security is not set to `open`.",
-				Type:        schema.TypeString,
+				Description: "The WPA pre-shared key (password) for the network. Required when security is not set to `open`.\n\n" +
+					"`Computed`, so leaving it unset keeps the key the controller already holds rather than clearing it. " +
+					"`x_passphrase` carries omitempty and a wlanconf PUT merges (verified on a disabled throwaway SSID), " +
+					"so an unconfigured passphrase never reaches the wire. That lets an existing WLAN be adopted without " +
+					"the PSK being written into configuration.",
+				Type: schema.TypeString,
 				// only required if security != open
 				Optional:  true,
+				Computed:  true,
 				Sensitive: true,
 			},
 			"hide_ssid": {
