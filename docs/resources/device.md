@@ -97,18 +97,41 @@ resource "unifi_device" "us_24_poe" {
 * Device must be in a pending adoption state
 * Device must be accessible on the network
 Set to false if you want to manage adoption manually. Defaults to `true`.
+- `config_network` (Block List, Max: 1) Device management addressing. Declare it for every managed device: leaving it out sends an empty object and the controller drops the static config, after which the device DHCPs on its next boot. (see [below for nested schema](#nestedblock--config_network))
+- `dot1x_fallback_networkconf_id` (String) Network a port falls back to when 802.1X authentication fails.
+- `dot1x_portctrl_enabled` (Boolean) Enable 802.1X port control on the device.
+- `dpi_enabled` (Boolean) Enable deep packet inspection on the device.
 - `ether_lighting` (Block List, Max: 1) Etherlighting configuration for switches with per-port LEDs (e.g. USW Pro Max). `mode = "network"` colors each port's LED by the VLAN/network it serves (per-network colors come from the site-level Etherlighting palette); `mode = "speed"` colors by link speed. Only the fields you set are written — unset fields keep their controller-side values (read-modify-write overlay). Devices without Etherlighting hardware ignore this object. (see [below for nested schema](#nestedblock--ether_lighting))
+- `ethernet_override` (Block Set) Per-interface network group on a gateway (`eth0`, `eth1`, ...). This is where a UDM/UXG keeps its port config -- gateways carry both these AND port_override. The controller REPLACES the whole list on write, so declare every interface you want to keep. (see [below for nested schema](#nestedblock--ethernet_override))
+- `flowctrl_enabled` (Boolean) Enable 802.3x flow control on the device. Overridden by the site-wide setting unless the device is listed in `switch_exclusions` on `unifi_setting_global_switch`.
 - `forget_on_destroy` (Boolean) Whether to forget (un-adopt) the device when this resource is destroyed. When true:
 * The device will be removed from the controller
 * The device will need to be readopted to be managed again
 * Device configuration will be reset
 Set to false to keep the device adopted when removing from Terraform management. Defaults to `true`.
+- `jumboframe_enabled` (Boolean) Enable jumbo frames. Same site-wide override caveat as `flowctrl_enabled`.
+- `lcm_brightness` (Number) LCD screen brightness, 1-100. Requires `lcm_brightness_override = true`.
+- `lcm_brightness_override` (Boolean) Use `lcm_brightness` instead of the controller default.
+- `lcm_idle_timeout` (Number) Seconds before the LCD screen sleeps, 10-3600. Requires `lcm_idle_timeout_override = true`.
+- `lcm_idle_timeout_override` (Boolean) Use `lcm_idle_timeout` instead of the controller default.
+- `lcm_night_mode_begins` (String) Start of LCD night mode, `HH:MM` on a 24-hour clock.
+- `lcm_night_mode_ends` (String) End of LCD night mode, `HH:MM` on a 24-hour clock.
+- `lcm_orientation_override` (Number) LCD screen rotation in degrees: 0, 90, 180 or 270. 0 cannot be written (it is the zero value and is omitted); rotate back through the UI.
+- `lcm_settings_restricted_access` (Boolean) Require the device password to change settings from the LCD screen.
+- `lcm_tracker_enabled` (Boolean) Show the device's location tracker on the LCD screen.
+- `lcm_tracker_seed` (String) Location tracker seed, up to 50 characters.
+- `led_override` (String) Status LED behaviour: follow the site setting, or force on/off.
+- `led_override_color` (String) Status LED colour as a hex string, when `led_override` is `on`.
+- `led_override_color_brightness` (Number) Status LED brightness percentage, when `led_override` is `on`.
 - `mac` (String) The MAC address of the device in standard format (e.g., 'aa:bb:cc:dd:ee:ff'). This is used to identify and manage specific devices that have already been adopted by the controller.
+- `mgmt_network_id` (String) Network the device uses for management -- the controller calls this the Network Override. A device with this set TAGS its management traffic with that VLAN, which is how a device reaches a management VLAN over a trunk whose native VLAN is something else. Switches usually do not need it (their uplink native VLAN does the job); APs here all use it.
 - `name` (String) A friendly name for the device that will be displayed in the UniFi controller UI. Examples:
 * 'Office-AP-1' for an access point
 * 'Core-Switch-01' for a switch
 * 'Main-Gateway' for a gateway
 Choose descriptive names that indicate location and purpose.
+- `outlet_enabled` (Boolean) Enable outlets (USP-PDU / RPS hardware).
+- `outlet_power_cycle_enabled` (Boolean) Allow power cycling of outlets.
 - `port_override` (Block Set) A list of port-specific configuration overrides for UniFi switches. This allows you to customize individual port settings such as:
   * Port names and labels for easy identification
   * Port profiles for VLAN and security settings
@@ -124,16 +147,39 @@ Common use cases include:
 **Warning:** the controller stores port overrides as a single array on the device and the provider replaces the entire array on every apply. Any port whose override is set outside Terraform (e.g. via the UniFi UI or another tool) and is NOT declared here will have its override reset to the controller default on the next apply. Declare every port you want overridden.
 
 **Tagged-VLAN model:** there is no positive "allowed VLANs" list. With `forward = "customize"`, tagged traffic is *all* networks **minus** the ones listed in `excluded_network_ids`, so an empty `excluded_network_ids` means "trunk everything", not "trunk nothing". (see [below for nested schema](#nestedblock--port_override))
+- `power_source_ctrl` (String) PoE power source type for the device.
+- `power_source_ctrl_budget` (Number) PoE budget in watts when power source control is enabled.
+- `power_source_ctrl_enabled` (Boolean) Enable PoE power source control.
 - `radio` (Block Set) Per-band radio configuration for access points. Each block configures ONE band (`ng` = 2.4GHz, `na` = 5GHz, `6e` = 6GHz). Only the bands you declare are managed — undeclared bands are left untouched (the provider read-modify-writes the device's full radio table to preserve them, so declaring just one band will not wipe the others). Common uses: disable a band (`tx_power_mode = "disabled"`), pin a channel/width, or set a minimum-RSSI client kick. Applies to access points; has no effect on switches.
 
 Note: like other device fields, only non-zero values are written, so a field cannot be set back to its zero value through Terraform — manage by overriding with explicit non-zero values. (see [below for nested schema](#nestedblock--radio))
+- `resetbtn_enabled` (String) Whether the physical reset button is active.
+- `rps_port_override` (Block Set) Outlet configuration for a redundant power supply (USP-RPS). Each block is one outlet. The controller REPLACES the whole outlet table on write, so declare every outlet you want to keep. Leaving the block out entirely preserves whatever the controller has. (see [below for nested schema](#nestedblock--rps_port_override))
 - `site` (String) The name of the UniFi site where the device is located. If not specified, the default site will be used.
+- `snmp_contact` (String) SNMP contact string.
+- `snmp_location` (String) SNMP location string.
+- `stp_priority` (String) Spanning tree bridge priority. Lower wins the root election; 32768 is the default.
+- `stp_version` (String) Spanning tree version.
 - `switch_vlan_enabled` (Boolean) Whether per-port VLAN configuration is enabled on the device. Required for `port_override` blocks with VLAN-tagging profiles (e.g. an IoT-VLAN `port_profile_id`) to actually take effect on access points that expose passthrough Ethernet ports (UAP-UHDIW and similar in-wall units). Switches honor port profile VLAN bindings unconditionally; APs ignore them unless this flag is true. Note: the underlying field uses `omitempty` so setting this to `false` has no effect — once enabled on a device, it can only be disabled via the UI.
 
 ### Read-Only
 
 - `disabled` (Boolean) Whether the device is administratively disabled. When true, the device will not forward traffic or provide services.
 - `id` (String) The unique identifier of the device in the UniFi controller.
+
+<a id="nestedblock--config_network"></a>
+### Nested Schema for `config_network`
+
+Optional:
+
+- `dns1` (String) Primary DNS.
+- `dns2` (String) Secondary DNS.
+- `dns_suffix` (String) DNS search suffix.
+- `gateway` (String) Default gateway.
+- `ip` (String) Management IP when static.
+- `netmask` (String) Netmask.
+- `type` (String) `static` or `dhcp`.
+
 
 <a id="nestedblock--ether_lighting"></a>
 ### Nested Schema for `ether_lighting`
@@ -144,6 +190,19 @@ Optional:
 - `brightness` (Number) LED brightness, 1-100.
 - `led_mode` (String) `etherlighting` (colored per-port LEDs) or `standard` (plain status LEDs).
 - `mode` (String) Color scheme: `network` (color by VLAN/network) or `speed` (color by link speed).
+
+
+<a id="nestedblock--ethernet_override"></a>
+### Nested Schema for `ethernet_override`
+
+Required:
+
+- `ifname` (String) Interface name, e.g. `eth0`.
+
+Optional:
+
+- `disabled` (Boolean) Administratively down.
+- `network_group` (String) `LAN`, `LAN2`..`LAN8`, `WAN`, `WAN2`..`WAN9`.
 
 
 <a id="nestedblock--port_override"></a>
@@ -160,7 +219,14 @@ Optional:
 * Setting up high-availability connections
 * Connecting to servers requiring more bandwidth
 Note: All ports in the LAG must be sequential and have matching configurations.
+- `autoneg` (Boolean) Enable speed/duplex auto-negotiation. Pinning a port means `autoneg = false` plus `speed`, but a false cannot be WRITTEN (see `port_security_enabled`) -- an existing `autoneg = false` on the controller is preserved because the field is omitted.
+- `dot1x_ctrl` (String) 802.1X control mode for this port.
+- `dot1x_idle_timeout` (Number) 802.1X idle timeout in seconds.
+- `egress_rate_limit_kbps` (Number) Egress rate limit in Kbps. Requires `egress_rate_limit_kbps_enabled`.
+- `egress_rate_limit_kbps_enabled` (Boolean) Enable the egress rate limit.
 - `excluded_network_ids` (Set of String) Set of network IDs to exclude when `forward = "customize"`. Tagged traffic on the port is *all* networks minus the ones listed here, so an empty set means "trunk everything". Computed when not set, so the controller's current exclusions are preserved without producing a diff.
+- `fec_mode` (String) Forward error correction mode, for SFP+ ports.
+- `flow_control_enabled` (Boolean) Enable 802.3x flow control (pause frames).
 - `forward` (String) VLAN forwarding mode for the port. Valid values are:
   * `all` - Forward all VLANs (trunk port)
   * `native` - Only forward untagged traffic (access port)
@@ -168,6 +234,12 @@ Note: All ports in the LAG must be sequential and have matching configurations.
   * `disabled` - Disable VLAN forwarding
 
 This attribute has NO default: leaving it unset keeps the port's existing forwarding behavior (the value is computed from the controller). Note: the underlying field uses `omitempty`, so once set it cannot be cleared back to empty through Terraform — change it to another value instead.
+- `full_duplex` (Boolean) Full duplex when auto-negotiation is off. Cannot be turned off from Terraform -- see `port_security_enabled`.
+- `isolation` (Boolean) Isolate this port from other isolated ports on the switch. Cannot be turned off from Terraform -- see `port_security_enabled`.
+- `lldpmed_enabled` (Boolean) Enable LLDP-MED on this port.
+- `lldpmed_notify_enabled` (Boolean) Send LLDP-MED topology change notifications.
+- `mirror_port_idx` (Number) Source port to mirror, when `op_mode = "mirror"`.
+- `multicast_router_networkconf_ids` (Set of String) Networks on which this port is treated as a multicast router port. Needs IGMP snooping enabled on the network.
 - `name` (String) A friendly name for the port that will be displayed in the UniFi controller UI. Examples:
   * 'Uplink to Core Switch'
   * 'Conference Room AP'
@@ -202,8 +274,31 @@ Computed when not set, so the controller's current value (which it may auto-popu
 * `off` - Disable PoE on the port
   - For non-PoE devices
   - To prevent unwanted power delivery
+- `port_keepalive_enabled` (Boolean) Enable port keepalive.
 - `port_profile_id` (String) The ID of a pre-configured port profile to apply to this port. Port profiles define settings like VLANs, PoE, and other port-specific configurations.
+- `port_security_enabled` (Boolean) Enable port security on this port.
+
+With `port_security_mac_address` set, only those MACs may use the port. With NO MAC addresses and no native network, the controller reports the port as `forward = "disabled"` -- this is how a port is administratively shut.
+
+**Cannot be turned off from Terraform**: the underlying field is `omitempty`, so a false is dropped from the payload and the controller keeps the previous value.
+- `port_security_mac_address` (Set of String) MAC addresses permitted on this port when `port_security_enabled` is true. Leave empty to shut the port rather than restrict it.
+- `priority_queue1_level` (Number) Egress priority queue 1 level.
+- `priority_queue2_level` (Number) Egress priority queue 2 level.
+- `priority_queue3_level` (Number) Egress priority queue 3 level.
+- `priority_queue4_level` (Number) Egress priority queue 4 level.
 - `setting_preference` (String) Whether the port's settings are taken from a profile (`auto`) or set per-port (`manual`). Valid values are `auto` and `manual`. Per-port VLAN overrides (`native_networkconf_id`, `tagged_vlan_mgmt`, `forward`, `excluded_network_ids`) generally require `setting_preference = "manual"` to persist on the controller; with `auto` the controller may revert inline overrides to profile/auto behavior. Setting this to `manual` also overrides any `port_profile_id` on the same port. Computed when not set, so the value the controller attaches to the port is preserved without producing a diff.
+- `speed` (Number) Pin the port speed in Mbps. Only meaningful with auto-negotiation off.
+- `stormctrl_bcast_enabled` (Boolean) Enable broadcast storm control.
+- `stormctrl_bcast_level` (Number) Broadcast storm control threshold as a percentage. Used when `stormctrl_type = "level"`.
+- `stormctrl_bcast_rate` (Number) Broadcast storm control threshold in packets per second. Used when `stormctrl_type = "rate"`.
+- `stormctrl_mcast_enabled` (Boolean) Enable multicast storm control.
+- `stormctrl_mcast_level` (Number) Multicast storm control threshold as a percentage.
+- `stormctrl_mcast_rate` (Number) Multicast storm control threshold in packets per second.
+- `stormctrl_type` (String) Whether storm control thresholds are expressed as a percentage (`level`) or packets per second (`rate`).
+- `stormctrl_ucast_enabled` (Boolean) Enable unknown-unicast storm control.
+- `stormctrl_ucast_level` (Number) Unknown-unicast storm control threshold as a percentage.
+- `stormctrl_ucast_rate` (Number) Unknown-unicast storm control threshold in packets per second.
+- `stp_port_mode` (Boolean) Enable STP on this port. Cannot be turned off from Terraform -- see `port_security_enabled`.
 - `tagged_vlan_mgmt` (String) VLAN tagging behavior for the port. Valid values are:
 * `auto` - Automatically handle VLAN tags (recommended)
 * `block_all` - Block all VLAN tagged traffic
@@ -230,3 +325,16 @@ Optional:
 - `min_rssi_enabled` (Boolean) Whether the minimum-RSSI client-disconnect threshold is enabled on this radio. Applied together with `min_rssi`.
 - `tx_power` (String) Custom transmit power in dBm, used when `tx_power_mode = "custom"`; otherwise leave unset.
 - `tx_power_mode` (String) Transmit-power mode: `auto`, `low`, `medium`, `high`, `custom`, or `disabled`. `disabled` turns the radio off (e.g. to suppress an unused 2.4GHz band on an in-wall AP).
+
+
+<a id="nestedblock--rps_port_override"></a>
+### Nested Schema for `rps_port_override`
+
+Required:
+
+- `number` (Number) Outlet number, 1-8.
+
+Optional:
+
+- `mode` (String) `auto` (supply power only when the device's own PSU fails), `force_active`, `manual` or `disabled`.
+- `name` (String) Outlet name, up to 32 characters.

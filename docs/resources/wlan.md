@@ -70,10 +70,24 @@ resource "unifi_wlan" "wifi" {
 
 ### Optional
 
+> **NOTE**: [Write-only arguments](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments) are supported in Terraform 1.11 and later.
+
 - `ap_group_ids` (Set of String) IDs of the AP groups that should broadcast this SSID. Used to control which access points broadcast this network.
+- `auth_cache` (Boolean) Cache 802.1x authentication results to speed up roaming.
+- `b_supported` (Boolean) Allow legacy 802.11b rates.
+- `bc_filter_enabled` (Boolean) Filter broadcast traffic, keeping it off the air unless listed in `bc_filter_list`.
 - `bss_transition` (Boolean) Enable BSS Transition Management to help clients roam between APs more efficiently. Defaults to `true`.
+- `country_beacon` (Boolean) Advertise the regulatory country in beacons (802.11d).
+- `dpi_enabled` (Boolean) Apply deep packet inspection to clients on this SSID.
+- `dtim_mode` (String) DTIM interval mode. `custom` enables the per-band `dtim_*` values.
+- `element_adopt` (Boolean) UniFi Elements adoption.
+- `enabled` (Boolean) Whether the SSID is broadcast at all. A disabled WLAN keeps its configuration.
+- `enhanced_iot` (Boolean) Enhanced IoT connectivity, which relaxes rates and steering for constrained devices.
 - `fast_roaming_enabled` (Boolean) Enable 802.11r Fast BSS Transition for seamless roaming between APs. Requires client device support. Defaults to `false`.
+- `group_rekey` (Number) Group key rotation interval in seconds. 0 disables rotation.
 - `hide_ssid` (Boolean) When enabled, the access points will not broadcast the network name (SSID). Clients will need to manually enter the SSID to connect.
+- `hotspot2conf_enabled` (Boolean) Enable the Hotspot 2.0 / Passpoint profile.
+- `iapp_enabled` (Boolean) Inter-Access-Point Protocol, which helps clients hand off between APs.
 - `is_guest` (Boolean) Mark this as a guest network. Guest networks are isolated from other networks and can have special restrictions like captive portals.
 - `l2_isolation` (Boolean) Isolates wireless clients from each other at layer 2 (ethernet) level. When enabled, devices on this WLAN cannot communicate directly with each other, improving security especially for guest networks or IoT devices. Each client can only communicate with the gateway/router. Defaults to `false`.
 - `mac_filter_enabled` (Boolean) Enable MAC address filtering to control network access based on client MAC addresses. Works in conjunction with `mac_filter_list` and `mac_filter_policy`.
@@ -83,19 +97,43 @@ resource "unifi_wlan" "wifi" {
   * `deny` - Block listed MAC addresses Defaults to `deny`.
 - `minimum_data_rate_2g_kbps` (Number) Minimum data rate for 2.4GHz devices in Kbps. Use `0` to disable. Valid values: `1000`, `2000`, `5500`, `6000`, `9000`, `11000`, `12000`, `18000`, `24000`, `36000`, `48000`,  and `54000`
 - `minimum_data_rate_5g_kbps` (Number) Minimum data rate for 5GHz devices in Kbps. Use `0` to disable. Valid values: `6000`, `9000`, `12000`, `18000`, `24000`, `36000`, `48000`,  and `54000`
+- `minrate_na_advertising_rates` (Boolean) Advertise the 5GHz minimum rate in beacons rather than only enforcing it.
+- `minrate_na_enabled` (Boolean) Whether the 5GHz minimum rate is enforced.
+- `minrate_ng_advertising_rates` (Boolean) Advertise the 2.4GHz minimum rate in beacons rather than only enforcing it.
+- `minrate_ng_enabled` (Boolean) Whether the 2.4GHz minimum rate is enforced. Independent of `minrate_setting_preference` on the controller.
+- `minrate_setting_preference` (String) Whether minimum data rates are chosen automatically or set by hand. Derived from `minimum_data_rate_2g_kbps`/`minimum_data_rate_5g_kbps` when either is configured; otherwise it round-trips what the controller holds.
+- `mlo_enabled` (Boolean) Multi-Link Operation (Wi-Fi 7).
 - `multicast_enhance` (Boolean) Enable multicast enhancement to convert multicast traffic to unicast for better reliability and performance, especially for applications like video streaming.
+- `name_combine_enabled` (Boolean) Broadcast one SSID name across bands. When false the controller appends `name_combine_suffix` to the 5GHz name.
 - `network_id` (String) ID of the network (VLAN) for this SSID. Used to assign the WLAN to a specific network segment.
 - `no2ghz_oui` (Boolean) When enabled, devices from specific manufacturers (identified by their OUI - Organizationally Unique Identifier) will be prevented from connecting on 2.4GHz and forced to use 5GHz. This improves overall network performance by ensuring capable devices use the less congested 5GHz band. Common examples include newer smartphones and laptops. Defaults to `true`.
+- `optimize_iot_wifi_connectivity` (Boolean) Optimisations for IoT devices that struggle to associate.
+- `p2p` (Boolean) Wi-Fi Direct / peer-to-peer.
+- `p2p_cross_connect` (Boolean) Allow peer-to-peer clients to reach the wired network.
 - `passphrase` (String, Sensitive) The WPA pre-shared key (password) for the network. Required when security is not set to `open`.
+
+`Computed`, so leaving it unset keeps the key the controller already holds rather than clearing it. `x_passphrase` carries omitempty and a wlanconf PUT merges (verified on a disabled throwaway SSID), so an unconfigured passphrase never reaches the wire. That lets an existing WLAN be adopted without the PSK being written into configuration.
+- `passphrase_wo` (String, Sensitive, [Write-only](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments)) The WPA pre-shared key, as a **write-only** attribute. Terraform never stores it in plan or state, so it can be fed from an `ephemeral` block -- a Vault/OpenBao KV secret, for instance -- without the key landing in the state file. Requires Terraform 1.11 or later.
+
+Prefer this over `passphrase` for anything sourced from a secret store. Because Terraform cannot see a write-only value, it cannot detect that the key changed: it is sent on create, and on any update the resource is already making for another reason.
 - `pmf_mode` (String) Protected Management Frames (PMF) mode. It cannot be disabled if using WPA3. Valid values are:
   * `required` - All clients must support PMF (required for WPA3)
   * `optional` - Clients can optionally use PMF (recommended when transitioning from WPA2 to WPA3)
   * `disabled` - PMF is disabled (not compatible with WPA3) Defaults to `disabled`.
+- `private_preshared_keys_enabled` (Boolean) Per-client PSKs (see `private_preshared_keys`).
 - `proxy_arp` (Boolean) Enable ARP proxy on this WLAN. When enabled, the UniFi controller will respond to ARP requests on behalf of clients, reducing broadcast traffic and potentially improving network performance. This is particularly useful in high-density wireless environments. Defaults to `false`.
+- `radius_das_enabled` (Boolean) RADIUS Dynamic Authorization Extensions (CoA/Disconnect).
+- `radius_mac_auth_enabled` (Boolean) Authenticate clients by MAC against RADIUS.
+- `radius_macacl_empty_password` (Boolean) Send an empty password for RADIUS MAC authentication.
 - `radius_profile_id` (String) ID of the RADIUS profile to use for WPA Enterprise authentication (when security is 'wpaeap'). Reference existing profiles using the `unifi_radius_profile` data source.
+- `rrm_enabled` (Boolean) 802.11k Radio Resource Management, which helps clients pick a better AP.
+- `sae_psk_vlan_required` (Boolean) Require a VLAN on every SAE PSK entry.
 - `schedule` (Block List) Time-based access control configuration for the wireless network. Allows automatic enabling/disabling of the network on specified schedules. (see [below for nested schema](#nestedblock--schedule))
+- `schedule_reversed` (Boolean) Invert the schedule, so the listed blocks are when the SSID is OFF.
 - `site` (String) The name of the UniFi site where the wireless network should be created. If not specified, the default site will be used.
+- `tdls_prohibit` (Boolean) Prohibit direct client-to-client tunnelled links.
 - `uapsd` (Boolean) Enable Unscheduled Automatic Power Save Delivery to improve battery life for mobile devices. Defaults to `false`.
+- `vlan_enabled` (Boolean) Whether the legacy `vlan` field applies. Modern configs use `network_id` instead.
 - `wlan_band` (String) Radio band selection (legacy single-band field). Valid values:
   * `both` - Both 2.4GHz and 5GHz
   * `2g` - 2.4GHz only
@@ -103,8 +141,13 @@ resource "unifi_wlan" "wifi" {
 
 Cannot express a 6GHz selection — use `wlan_bands` for that. When neither this nor `wlan_bands` is set, the controller's default (all supported bands) applies.
 - `wlan_bands` (Set of String) Radio bands to broadcast this SSID on (modern multi-band field, supersedes `wlan_band` and supports 6GHz). Valid values for each element: `2g`, `5g`, `6g`. Note that 6GHz requires WPA3 (or WPA3 transition mode) and a 6GHz-capable access point. When set, the legacy `wlan_band` field is derived from it and `setting_preference` is forced to `manual`, matching UniFi UI behavior.
+- `wlangroup_id` (String) ID of the WLAN group this SSID belongs to.
+- `wpa3_enhanced_192` (Boolean) WPA3 Enterprise 192-bit mode.
+- `wpa3_fast_roaming` (Boolean) 802.11r fast roaming for WPA3.
 - `wpa3_support` (Boolean) Enable WPA3 security protocol. Requires security to be set to `wpapsk` and PMF mode to be enabled. WPA3 provides enhanced security features over WPA2.
 - `wpa3_transition` (Boolean) Enable WPA3 transition mode, which allows both WPA2 and WPA3 clients to connect. This provides backward compatibility while gradually transitioning to WPA3. Requires security to be set to `wpapsk` and `wpa3_support` to be true.
+- `wpa_enc` (String) WPA encryption cipher.
+- `wpa_mode` (String) WPA protocol version.
 
 ### Read-Only
 

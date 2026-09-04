@@ -71,6 +71,11 @@ Use with caution as it can modify settings for devices already connected to your
 - `site` (String) The name of the UniFi site where this user should be managed. If not specified, the default site will be used.
 - `skip_forget_on_destroy` (Boolean) When false (default), the client will be 'forgotten' by the controller when this resource is destroyed. Set to true to keep the client's history in the controller after the resource is removed from Terraform. Defaults to `false`.
 - `user_group_id` (String) The ID of the user group this client belongs to. User groups can be used to apply common settings and restrictions to multiple clients.
+- `virtual_network_override_id` (String) The ID of the network to pin this client to, regardless of which SSID it associates with -- the controller calls this the client's Virtual Network Override.
+
+This is NOT `network_id`. The controller stores the override as a pair of fields, `virtual_network_override_enabled` and `virtual_network_override_id`, and the VLAN assignment consults only those; `network_id` is an older field this feature does not read. Setting a value here enables the override, and clearing it disables it.
+
+Only meaningful for wireless clients. A wired client takes its VLAN from the switch port, so an override there does nothing.
 
 ### Read-Only
 

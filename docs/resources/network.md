@@ -102,12 +102,6 @@ resource "unifi_network" "tailscale_lan" {
 ### Required
 
 - `name` (String) The name of the network. This should be a descriptive name that helps identify the network's purpose, such as 'Corporate-Main', 'Guest-Network', or 'IoT-VLAN'.
-- `purpose` (String) The purpose/type of the network. Must be one of:
-* `corporate` - Standard network for corporate use with full access
-* `guest` - Isolated network for guest access with limited permissions
-* `wan` - External network connection (WAN uplink)
-* `vlan-only` - VLAN network without DHCP services
-* `vpn-client` - Site-to-site VPN client connection (see the `vpn_type` and `wireguard_client_*` arguments to configure a WireGuard VPN client)
 
 ### Optional
 
@@ -137,6 +131,9 @@ Like `dhcp_guarding`, this attribute is `Optional` and `Computed`: when omitted 
 * DHCP requests are forwarded to an external DHCP server
 * Local DHCP server is disabled
 * Useful for centralized DHCP management
+- `dhcp_relay_servers` (List of String) DHCP servers to relay to, in priority order. Requires `dhcp_relay_enabled = true`.
+
+go-unifi's Network struct has no field for this, so it is read and written out of band against the REST API directly. Safe because a networkconf PUT MERGES -- verified on hardware with a throwaway network: a body carrying only this key left all 16 other fields untouched.
 - `dhcp_start` (String) The starting IPv4 address of the DHCP range. Examples:
 * For subnet 192.168.1.0/24, typical start: '192.168.1.100'
 * For subnet 10.0.0.0/24, typical start: '10.0.0.100'
@@ -278,6 +275,14 @@ This attribute is `Optional` + `Computed`: when omitted from configuration it in
 * Hosts on this network cannot route to or from other local networks on the site
 * Gateway and internet access are retained (internet access is subject to `internet_access_enabled`)
 * This is a routing/firewall option for network-to-network isolation, distinct from per-client (WLAN) isolation Defaults to `false`.
+- `purpose` (String) The purpose/type of the network. Must be one of:
+* `corporate` - Standard network for corporate use with full access
+* `guest` - Isolated network for guest access with limited permissions
+* `wan` - External network connection (WAN uplink)
+* `vlan-only` - VLAN network without DHCP services
+* `vpn-client` - Site-to-site VPN client connection (see the `vpn_type` and `wireguard_client_*` arguments to configure a WireGuard VPN client)
+
+On UniFi OS 9.x+ this is **derived from firewall zone membership** for LAN networks: putting a network in the Hotspot zone makes it `guest`, and moving it out makes it `corporate`. Writing the field is a silent no-op — the controller returns rc: ok and ignores the value. It is therefore `Optional` + `Computed` and is only sent when explicitly configured, which matters for `wan`, `vlan-only` and `vpn-client` at create time. It is deliberately NOT `ForceNew`: a config that disagreed with the derived value used to plan a destroy and recreate of a live network, and the recreate landed in the default zone and disagreed again, so it never converged.
 - `site` (String) The name of the site to associate the network with.
 - `subnet` (String) The IPv4 subnet for this network in CIDR notation (e.g., '192.168.1.0/24'). This defines the network's address space and determines the range of IP addresses available for DHCP.
 - `uid_vpn_custom_routing` (List of String) The list of destination subnets (CIDR notation) routed through the VPN client tunnel when `vpn_client_default_route` is false. Values are canonicalized to their network address (e.g. `10.0.0.1/16` becomes `10.0.0.0/16`). Only applicable when `purpose` is 'vpn-client'.
