@@ -56,11 +56,18 @@ Check your UniFi controller for the complete list of supported providers.
 
 ### Optional
 
+> **NOTE**: [Write-only arguments](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments) are supported in Terraform 1.11 and later.
+
 - `interface` (String) The WAN interface to use for the dynamic DNS updates. Valid values are:
   * `wan` - Primary WAN interface (default)
   * `wan2` - Secondary WAN interface Defaults to `wan`.
 - `login` (String) The username or login for your DDNS provider account.
-- `password` (String, Sensitive) The password or token for your DDNS provider account. This value will be stored securely and not displayed in logs.
+- `password` (String, Sensitive) The password or token for your DDNS provider account.
+
+`Computed`, so leaving it unset keeps the credential the controller already holds rather than clearing it. `x_password` carries omitempty and a dynamicdns PUT merges (verified against a live controller), so an unconfigured password never reaches the wire. That lets an existing entry be adopted without the credential being written into configuration.
+- `password_wo` (String, Sensitive, [Write-only](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments)) The DDNS provider password or token, as a **write-only** attribute. Terraform never stores it in plan or state, so it can be fed from an `ephemeral` block -- a Vault/OpenBao KV secret, for instance -- without the credential landing in the state file. Requires Terraform 1.11 or later.
+
+Prefer this over `password` for anything sourced from a secret store. Because Terraform cannot see a write-only value, it cannot detect that the credential changed: it is sent on create, and on any update the resource is already making for another reason.
 - `server` (String) The update server hostname for your DDNS provider. Usually not required as the UniFi controller knows the correct servers for common providers.
 - `site` (String) The name of the UniFi site where the dynamic DNS configuration should be created. If not specified, the default site will be used.
 

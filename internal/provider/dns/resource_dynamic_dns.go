@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/filipowm/go-unifi/unifi"
+	"github.com/hashicorp/go-cty/cty"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 
@@ -81,11 +82,31 @@ func ResourceDynamicDNS() *schema.Resource {
 				Type:        schema.TypeString,
 				Optional:    true,
 			},
+			"password_wo": {
+				Description: "The DDNS provider password or token, as a **write-only** attribute. Terraform never stores " +
+					"it in plan or state, so it can be fed from an `ephemeral` block -- a Vault/OpenBao KV " +
+					"secret, for instance -- without the credential landing in the state file. Requires Terraform " +
+					"1.11 or later.\n\n" +
+					"Prefer this over `password` for anything sourced from a secret store. Because " +
+					"Terraform cannot see a write-only value, it cannot detect that the credential changed: it is " +
+					"sent on create, and on any update the resource is already making for another reason.",
+				Type:          schema.TypeString,
+				Optional:      true,
+				WriteOnly:     true,
+				Sensitive:     true,
+				ConflictsWith: []string{"password"},
+			},
 			"password": {
-				Description: "The password or token for your DDNS provider account. This value will be stored securely and not displayed in logs.",
-				Type:        schema.TypeString,
-				Optional:    true,
-				Sensitive:   true,
+				Description: "The password or token for your DDNS provider account.\n\n" +
+					"`Computed`, so leaving it unset keeps the credential the controller already holds rather than clearing it. " +
+					"`x_password` carries omitempty and a dynamicdns PUT merges (verified against a live controller), " +
+					"so an unconfigured password never reaches the wire. That lets an existing entry be adopted without " +
+					"the credential being written into configuration.",
+				Type:          schema.TypeString,
+				Optional:      true,
+				Computed:      true,
+				Sensitive:     true,
+				ConflictsWith: []string{"password_wo"},
 			},
 
 			// TODO: options support?
@@ -148,6 +169,15 @@ func resourceDynamicDNSGetResourceData(d *schema.ResourceData) (*unifi.DynamicDN
 		return nil, errors.New("password must be a string")
 	}
 
+	// A write-only attribute is deliberately absent from state and from d.Get;
+	// the only place it exists is the raw config for this operation.
+	if raw := d.GetRawConfig(); !raw.IsNull() {
+		if wo, diags := d.GetRawConfigAt(cty.GetAttrPath("password_wo")); !diags.HasError() &&
+			!wo.IsNull() && wo.IsKnown() && wo.Type() == cty.String {
+			password = wo.AsString()
+		}
+	}
+
 	r := &unifi.DynamicDNS{
 		Interface: iface,
 		Service:   service,
@@ -178,7 +208,17 @@ func resourceDynamicDNSSetResourceData(resp *unifi.DynamicDNS, d *schema.Resourc
 	if err := d.Set("login", resp.Login); err != nil {
 		return diag.FromErr(err)
 	}
-	if err := d.Set("password", resp.XPassword); err != nil {
+
+	// Never persist a credential the practitioner did not write. password is
+	// Optional+Computed and x_password carries omitempty, so an unconfigured
+	// one is never sent to the controller -- storing it would drop a live
+	// DDNS credential into the state file in plain text for no purpose. A
+	// configured one must be stored, or it cannot be diffed.
+	password := resp.XPassword
+	if raw := d.GetRawConfig(); raw.IsNull() || !utils.IsRawConfigSet(raw, "password") {
+		password = ""
+	}
+	if err := d.Set("password", password); err != nil {
 		return diag.FromErr(err)
 	}
 
