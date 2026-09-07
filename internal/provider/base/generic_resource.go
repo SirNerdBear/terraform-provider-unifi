@@ -25,6 +25,15 @@ type ResourceFunctions struct {
 	ReadAfterWrite bool
 }
 
+// WriteOnlyAware lets a model take write-only attribute values from the raw
+// configuration of the current operation. Terraform delivers write-only values
+// only in Config -- Plan and State always carry null -- so the generic Create
+// and Update pass a config-populated model to any model implementing this
+// before calling AsUnifiModel.
+type WriteOnlyAware interface {
+	ApplyWriteOnly(ctx context.Context, config interface{}) diag.Diagnostics
+}
+
 // GenericResource provides common functionality for all resources.
 type GenericResource[T ResourceModel] struct {
 	ControllerVersionValidator
@@ -110,6 +119,18 @@ func (b *GenericResource[T]) Create(ctx context.Context, req resource.CreateRequ
 		return
 	}
 	site := b.client.ResolveSite(plan)
+
+	if woa, ok := any(plan).(WriteOnlyAware); ok {
+		var config T
+		resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+		resp.Diagnostics.Append(woa.ApplyWriteOnly(ctx, config)...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+	}
 
 	body, diags := plan.AsUnifiModel(ctx)
 
@@ -202,6 +223,23 @@ func (b *GenericResource[T]) Update(ctx context.Context, req resource.UpdateRequ
 	if resp.Diagnostics.HasError() {
 		return
 	}
+
+	// Update merges the write response into state, not plan, so the config's
+	// write-only values are applied to both: plan feeds the request body,
+	// state becomes what is persisted.
+	if woa, ok := any(plan).(WriteOnlyAware); ok {
+		var config T
+		resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+		resp.Diagnostics.Append(woa.ApplyWriteOnly(ctx, config)...)
+		resp.Diagnostics.Append(any(state).(WriteOnlyAware).ApplyWriteOnly(ctx, config)...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+	}
+
 	body, diags := plan.AsUnifiModel(ctx)
 	if diags.HasError() {
 		resp.Diagnostics.Append(diags...)

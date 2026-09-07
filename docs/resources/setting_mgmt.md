@@ -73,6 +73,8 @@ resource "unifi_setting_mgmt" "example" {
 
 ### Optional
 
+> **NOTE**: [Write-only arguments](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments) are supported in Terraform 1.11 and later.
+
 - `advanced_feature_enabled` (Boolean) Enable advanced features for UniFi devices at this site.
 - `alert_enabled` (Boolean) Enable alerts for UniFi devices at this site.
 - `auto_upgrade` (Boolean) Enable automatic firmware upgrades for all UniFi devices at this site. When enabled, devices will automatically update to the latest stable firmware version approved for your controller version.
@@ -87,7 +89,11 @@ resource "unifi_setting_mgmt" "example" {
 - `ssh_bind_wildcard` (Boolean) Enable SSH bind wildcard for UniFi devices at this site.
 - `ssh_enabled` (Boolean) Enable SSH access to UniFi devices at this site. When enabled, you can connect to devices using SSH for advanced configuration and troubleshooting. It's recommended to only enable this temporarily when needed.
 - `ssh_key` (Block List) List of SSH public keys that are allowed to connect to UniFi devices when SSH is enabled. Using SSH keys is more secure than password authentication. (see [below for nested schema](#nestedblock--ssh_key))
-- `ssh_password` (String, Sensitive) The SSH password for UniFi devices at this site.
+- `ssh_password` (String, Sensitive) The SSH password for UniFi devices at this site. Never read back from the controller: state carries it only while it is set here in configuration. Prefer `ssh_password_wo` for a credential sourced from a secret store.
+- `ssh_password_wo` (String, Sensitive, [Write-only](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments)) The SSH password for UniFi devices at this site, as a **write-only** attribute. Terraform never stores it in plan or state, so it can be fed from an `ephemeral` block -- a Vault/OpenBao KV secret, for instance -- without the credential landing in the state file. Requires Terraform 1.11 or later.
+
+Prefer this over `ssh_password` for anything sourced from a secret store. Because Terraform cannot see a write-only value, it cannot detect that the credential changed: it is sent on create, and on any update the resource is already making for another reason.
+- `ssh_password_wo_version` (Number) Companion to `ssh_password_wo`. Terraform cannot see a write-only value change, so rotating the credential in the secret store alone never reaches the controller -- bump this number alongside the rotation to force an update that sends the new value.
 - `ssh_username` (String) The SSH username for UniFi devices at this site.
 - `unifi_idp_enabled` (Boolean) Enable UniFi IDP for UniFi devices at this site.
 - `wifiman_enabled` (Boolean) Enable WiFiman for UniFi devices at this site.

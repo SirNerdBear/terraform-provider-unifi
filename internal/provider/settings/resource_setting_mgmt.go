@@ -60,8 +60,26 @@ type mgmtModel struct {
 	SSHBindWildcard        types.Bool   `tfsdk:"ssh_bind_wildcard"`
 	SSHKeys                types.List   `tfsdk:"ssh_key"`
 	SSHPassword            types.String `tfsdk:"ssh_password"`
+	SSHPasswordWo          types.String `tfsdk:"ssh_password_wo"`
+	SSHPasswordWoVersion   types.Int32  `tfsdk:"ssh_password_wo_version"`
 	SSHEnabled             types.Bool   `tfsdk:"ssh_enabled"`
 	SSHUsername            types.String `tfsdk:"ssh_username"`
+}
+
+// ApplyWriteOnly implements base.WriteOnlyAware. ssh_password mirrors the
+// configuration here too, so a password the practitioner stopped managing
+// drops out of state instead of being carried forever.
+func (m *mgmtModel) ApplyWriteOnly(_ context.Context, config interface{}) diag.Diagnostics {
+	diags := diag.Diagnostics{}
+	c, ok := config.(*mgmtModel)
+	if !ok {
+		diags.AddError("Invalid model type", fmt.Sprintf("Expected *mgmtModel, got: %T", config))
+		return diags
+	}
+	m.SSHPassword = c.SSHPassword
+	m.SSHPasswordWo = c.SSHPasswordWo
+	m.SSHPasswordWoVersion = c.SSHPasswordWoVersion
+	return diags
 }
 
 func (m *mgmtModel) AsUnifiModel(ctx context.Context) (interface{}, diag.Diagnostics) {
@@ -71,6 +89,11 @@ func (m *mgmtModel) AsUnifiModel(ctx context.Context) (interface{}, diag.Diagnos
 	diags.Append(d...)
 	if diags.HasError() {
 		return nil, diags
+	}
+
+	password := m.SSHPassword.ValueString()
+	if !m.SSHPasswordWo.IsNull() {
+		password = m.SSHPasswordWo.ValueString()
 	}
 
 	return &unifi.SettingMgmt{
@@ -91,7 +114,7 @@ func (m *mgmtModel) AsUnifiModel(ctx context.Context) (interface{}, diag.Diagnos
 		XSshAuthPasswordEnabled: m.SSHAuthPasswordEnabled.ValueBool(),
 		XSshBindWildcard:        m.SSHBindWildcard.ValueBool(),
 		XSshUsername:            m.SSHUsername.ValueString(),
-		XSshPassword:            m.SSHPassword.ValueString(),
+		XSshPassword:            password,
 		XSshKeys:                sshKeys,
 	}, diags
 }
@@ -146,7 +169,11 @@ func (m *mgmtModel) Merge(ctx context.Context, other interface{}) diag.Diagnosti
 	m.SSHAuthPasswordEnabled = types.BoolValue(resp.XSshAuthPasswordEnabled)
 	m.SSHBindWildcard = types.BoolValue(resp.XSshBindWildcard)
 	m.SSHUsername = types.StringValue(resp.XSshUsername)
-	m.SSHPassword = types.StringValue(resp.XSshPassword)
+	// x_ssh_password comes back on read but is never persisted: state keeps
+	// whatever the practitioner configured -- null when the credential is fed
+	// through write-only ssh_password_wo. x_ssh_password carries omitempty,
+	// so an unconfigured password never reaches the wire on write either.
+	// Controller-side drift in the password is invisible by design.
 
 	// Convert SSH keys
 	if len(resp.XSshKeys) > 0 {
@@ -345,12 +372,37 @@ func (r *mgmtResource) Schema(_ context.Context, _ resource.SchemaRequest, resp 
 				},
 			},
 			"ssh_password": schema.StringAttribute{
-				MarkdownDescription: "The SSH password for UniFi devices at this site.",
-				Optional:            true,
-				Computed:            true,
-				Sensitive:           true,
+				MarkdownDescription: "The SSH password for UniFi devices at this site. Never read back from the controller: state carries " +
+					"it only while it is set here in configuration. Prefer `ssh_password_wo` for a credential sourced from a secret store.",
+				Optional:  true,
+				Computed:  true,
+				Sensitive: true,
 				Validators: []validator.String{
 					stringvalidator.LengthAtLeast(1),
+				},
+			},
+			"ssh_password_wo": schema.StringAttribute{
+				MarkdownDescription: "The SSH password for UniFi devices at this site, as a **write-only** attribute. Terraform never stores " +
+					"it in plan or state, so it can be fed from an `ephemeral` block -- a Vault/OpenBao KV secret, for instance -- " +
+					"without the credential landing in the state file. Requires Terraform 1.11 or later.\n\n" +
+					"Prefer this over `ssh_password` for anything sourced from a secret store. Because Terraform cannot see a " +
+					"write-only value, it cannot detect that the credential changed: it is sent on create, and on any update the " +
+					"resource is already making for another reason.",
+				Optional:  true,
+				WriteOnly: true,
+				Sensitive: true,
+				Validators: []validator.String{
+					stringvalidator.LengthAtLeast(1),
+					stringvalidator.ConflictsWith(path.MatchRoot("ssh_password")),
+				},
+			},
+			"ssh_password_wo_version": schema.Int32Attribute{
+				MarkdownDescription: "Companion to `ssh_password_wo`. Terraform cannot see a write-only value change, so rotating the " +
+					"credential in the secret store alone never reaches the controller -- bump this number alongside the rotation " +
+					"to force an update that sends the new value.",
+				Optional: true,
+				Validators: []validator.Int32{
+					int32validator.AlsoRequires(path.MatchRoot("ssh_password_wo")),
 				},
 			},
 		},
