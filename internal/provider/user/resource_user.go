@@ -2,7 +2,10 @@ package user
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"net/http"
 
 	"github.com/SirNerdBear/terraform-provider-unifi/internal/provider/utils"
 
@@ -424,7 +427,39 @@ func resourceUserUpdate(ctx context.Context, d *schema.ResourceData, meta interf
 		return nil
 	}
 
+	if req.Note == "" && d.HasChange("note") {
+		if err := clearUserNote(ctx, c, site, req); err != nil {
+			return diag.FromErr(err)
+		}
+		resp.Note = ""
+	}
+
 	return resourceUserSetResourceData(resp, d, site)
+}
+
+// clearUserNote re-sends the user with note present and empty.
+//
+// go-unifi tags Note as `json:"note,omitempty"`, so emptying it produces a PUT
+// body with no note field at all. The controller merges what it is given, so
+// the old note survives, the PUT still answers ok, and the diff comes back on
+// every plan. Sending the same body as a map keeps the empty value in it.
+func clearUserNote(ctx context.Context, c *base.Client, site string, req *unifi.User) error {
+	raw, err := json.Marshal(req)
+	if err != nil {
+		return err
+	}
+	body := map[string]any{}
+	if err := json.Unmarshal(raw, &body); err != nil {
+		return err
+	}
+	body["note"] = ""
+
+	var respBody struct {
+		Meta unifi.Meta   `json:"meta"`
+		Data []unifi.User `json:"data"`
+	}
+	return c.Do(ctx, http.MethodPut,
+		fmt.Sprintf("s/%s/rest/user/%s", site, req.ID), body, &respBody)
 }
 
 func resourceUserDelete(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
