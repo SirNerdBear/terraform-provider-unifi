@@ -592,8 +592,11 @@ func (m *FirewallZonePolicyModel) Merge(ctx context.Context, other interface{}) 
 	diags.Append(m.mergeDestination(ctx, model)...)
 	diags.Append(m.mergeSchedule(ctx, model)...)
 
-	// Set ConnectionStates
-	if model.ConnectionStateType == "custom" {
+	// Mirror whatever states the API returns, regardless of the state type.
+	// The controller stores them on RESPOND_ONLY rules too, and gating on a
+	// lowercase "custom" the API never sends nulled them on read, which failed
+	// the apply consistency check.
+	if len(model.ConnectionStates) > 0 {
 		connectionStates, d := types.ListValueFrom(ctx, types.StringType, model.ConnectionStates)
 		diags.Append(d...)
 		m.ConnectionStates = connectionStates
